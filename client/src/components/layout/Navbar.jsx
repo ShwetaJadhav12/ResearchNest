@@ -1,52 +1,57 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+﻿import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 export default function Navbar() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        setUser(null);
-      }
-    } else {
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) setUser(JSON.parse(raw));
+    } catch (e) {
       setUser(null);
     }
+
+    const onStorage = (e) => {
+      if (e.key === "user") {
+        try {
+          setUser(e.newValue ? JSON.parse(e.newValue) : null);
+        } catch {
+          setUser(null);
+        }
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const displayName = useMemo(() => {
-    if (!user) return "";
-    return user.fullName || user.name || user.email || "User";
-  }, [user]);
-
-  const initials = useMemo(() => {
-    if (!displayName) return "U";
-    return displayName
-      .split(" ")
-      .map((part) => part[0]?.toUpperCase() || "")
-      .slice(0, 2)
-      .join("");
-  }, [displayName]);
-
   const handleLogout = () => {
-    localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
     navigate("/");
   };
 
+  const initials = (name) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0]?.toUpperCase() || "")
+      .slice(0, 2)
+      .join("");
+  };
+
   return (
-    <header className="sticky top-0 z-50 border-b border-violet-100 bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-violet-100">
       <nav className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
+        {/* Logo */}
         <Link to="/" className="text-2xl font-bold tracking-tight">
           <span className="text-slate-900">Research</span>
           <span className="text-violet-600">Nest</span>
         </Link>
 
+        {/* Navigation */}
         <div className="hidden items-center gap-8 md:flex">
           <a href="#features" className="text-slate-600 transition hover:text-violet-600">
             Features
@@ -65,33 +70,43 @@ export default function Navbar() {
           </a>
         </div>
 
+        {/* Buttons / Profile */}
         <div className="flex items-center gap-3">
-          {user ? (
-            <div className="flex items-center gap-3 rounded-full border border-violet-100 bg-violet-50 px-3 py-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-500 text-sm font-semibold text-white">
-                {initials}
-              </div>
-              <div className="hidden text-left sm:block">
-                <p className="text-sm font-semibold text-slate-800">{displayName}</p>
-                <p className="text-xs text-slate-500">Signed in</p>
-              </div>
+          {!user ? (
+            <>
+              <Link
+                to="/login"
+                className="rounded-xl px-5 py-2 text-slate-700 transition hover:bg-violet-50"
+              >
+                Login
+              </Link>
+
+              <Link
+                to="/register"
+                className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                Get Started
+              </Link>
+            </>
+          ) : (
+            <div className="flex items-center gap-4">
+              <Link to="/dashboard" className="hidden md:flex items-center gap-3 rounded-full px-3 py-2 hover:bg-violet-50">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-sm font-semibold text-white">
+                  {initials(user.name || user.email)}
+                </div>
+                <div className="text-sm">
+                  <div className="font-medium text-slate-900">{user.name || user.email}</div>
+                  <div className="text-xs text-slate-500">View dashboard</div>
+                </div>
+              </Link>
+
               <button
                 onClick={handleLogout}
-                className="ml-1 rounded-full px-3 py-1 text-sm font-medium text-violet-700 transition hover:bg-white"
+                className="rounded-xl border border-violet-100 bg-white px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50"
               >
                 Logout
               </button>
             </div>
-          ) : (
-            <>
-              <Link to="/login" className="rounded-xl px-5 py-2 text-slate-700 transition hover:bg-violet-50">
-                Login
-              </Link>
-
-              <Link to="/register" className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
-                Get Started
-              </Link>
-            </>
           )}
         </div>
       </nav>
