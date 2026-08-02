@@ -1,37 +1,10 @@
-﻿import { Link, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useContext } from "react";
+import { AuthContext } from "../../contexts/AuthContext";
 
 export default function Navbar() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("user");
-      if (raw) setUser(JSON.parse(raw));
-    } catch (e) {
-      setUser(null);
-    }
-
-    const onStorage = (e) => {
-      if (e.key === "user") {
-        try {
-          setUser(e.newValue ? JSON.parse(e.newValue) : null);
-        } catch {
-          setUser(null);
-        }
-      }
-    };
-
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    navigate("/");
-  };
+  const { user, logout } = useContext(AuthContext);
 
   const initials = (name) => {
     if (!name) return "U";
@@ -92,16 +65,16 @@ export default function Navbar() {
             <div className="flex items-center gap-4">
               <Link to="/dashboard" className="hidden md:flex items-center gap-3 rounded-full px-3 py-2 hover:bg-violet-50">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-600 text-sm font-semibold text-white">
-                  {initials(user.name || user.email)}
+                  {initials(user.fullName || user.email)}
                 </div>
                 <div className="text-sm">
-                  <div className="font-medium text-slate-900">{user.name || user.email}</div>
+                  <div className="font-medium text-slate-900">{user.fullName || user.email}</div>
                   <div className="text-xs text-slate-500">View dashboard</div>
                 </div>
               </Link>
 
               <button
-                onClick={handleLogout}
+                onClick={() => { logout(); navigate('/'); }}
                 className="rounded-xl border border-violet-100 bg-white px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50"
               >
                 Logout
