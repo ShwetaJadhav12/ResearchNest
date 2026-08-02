@@ -1,5 +1,7 @@
-﻿import { useState } from "react";
+﻿import { useState, useContext } from "react";
+import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
+import { AuthContext } from "../../contexts/AuthContext";
 
 const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -9,7 +11,9 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
 
-  const handleSubmit = (event) => {
+  const { saveAuth } = useContext(AuthContext);
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     const nextErrors = {};
@@ -31,16 +35,17 @@ export default function Login() {
 
     setErrors({});
 
-    // Simple client-side login: persist user to localStorage
-    const user = { name: email.split("@")[0], email };
     try {
-      localStorage.setItem("user", JSON.stringify(user));
-    } catch (e) {
-      // ignore storage errors
+      const res = await axios.post("/api/auth/login", { email, password });
+      if (res?.data?.success) {
+        saveAuth({ user: res.data.user, token: res.data.token });
+        navigate("/");
+      } else {
+        setErrors({ form: res?.data?.message || "Login failed" });
+      }
+    } catch (err) {
+      setErrors({ form: err?.response?.data?.message || "Login failed" });
     }
-
-    // Navigate to landing page as requested
-    navigate("/");
   };
 
   return (
@@ -73,8 +78,11 @@ export default function Login() {
                 aria-invalid={errors.email ? "true" : "false"}
                 className="w-full rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-900 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
               />
-              {errors.email ? (
+                  {errors.email ? (
                 <p className="text-sm text-rose-600">{errors.email}</p>
+              ) : null}
+              {errors.form ? (
+                <p className="text-sm text-rose-600">{errors.form}</p>
               ) : null}
             </div>
 

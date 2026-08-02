@@ -1,5 +1,7 @@
-﻿import { useState } from "react";
+﻿import { useState, useContext } from "react";
+import axios from "axios";
 import { Link, useNavigate } from "react-router-dom";
+import { AuthContext } from "../../contexts/AuthContext";
 
 const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -10,7 +12,9 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
 
-  const handleSubmit = (event) => {
+  const { saveAuth } = useContext(AuthContext);
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     const nextErrors = {};
@@ -35,16 +39,17 @@ export default function Register() {
 
     setErrors({});
 
-    // Persist a simple user object locally
-    const user = { name: name.trim(), email };
     try {
-      localStorage.setItem("user", JSON.stringify(user));
-    } catch (e) {
-      // ignore storage issues
+      const res = await axios.post("/api/auth/register", { fullName: name.trim(), email, password });
+      if (res?.data?.success) {
+        saveAuth({ user: res.data.user, token: res.data.token });
+        navigate("/");
+      } else {
+        setErrors({ form: res?.data?.message || "Registration failed" });
+      }
+    } catch (err) {
+      setErrors({ form: err?.response?.data?.message || "Registration failed" });
     }
-
-    // Navigate to landing page as requested
-    navigate("/");
   };
 
   return (
@@ -97,6 +102,9 @@ export default function Register() {
               />
               {errors.email ? (
                 <p className="text-sm text-rose-600">{errors.email}</p>
+              ) : null}
+              {errors.form ? (
+                <p className="text-sm text-rose-600">{errors.form}</p>
               ) : null}
             </div>
 
