@@ -8,11 +8,13 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 
 const features = [
   {
     icon: FileText,
     title: "Upload & Organize",
+    slug: "upload-organize",
     description:
       "Keep your research papers neatly organized with folders, tags, and projects.",
     color: "bg-violet-100 text-violet-700",
@@ -20,6 +22,7 @@ const features = [
   {
     icon: Sparkles,
     title: "AI Research Assistant",
+    slug: "ai-research-assistant",
     description:
       "Summarize papers, answer questions, compare studies, and generate literature reviews instantly.",
     color: "bg-pink-100 text-pink-600",
@@ -28,6 +31,7 @@ const features = [
   {
     icon: Brain,
     title: "Knowledge Graph",
+    slug: "knowledge-graph",
     description:
       "Automatically connect concepts, authors, and research topics into one visual network.",
     color: "bg-emerald-100 text-emerald-600",
@@ -35,6 +39,7 @@ const features = [
   {
     icon: PenTool,
     title: "Smart Notes",
+    slug: "smart-notes",
     description:
       "Highlight PDFs, write notes, and connect ideas without switching applications.",
     color: "bg-amber-100 text-amber-600",
@@ -42,6 +47,7 @@ const features = [
   {
     icon: BarChart3,
     title: "Research Insights",
+    slug: "research-insights",
     description:
       "Track reading progress, AI summaries, citations, and productivity in one place.",
     color: "bg-sky-100 text-sky-600",
@@ -49,6 +55,7 @@ const features = [
   {
     icon: Users,
     title: "Team Collaboration",
+    slug: "team-collaboration",
     description:
       "Share projects, review papers together, and collaborate with your research team.",
     color: "bg-purple-100 text-purple-600",
@@ -97,6 +104,7 @@ export default function Features() {
 function FeatureCard({
   icon: Icon,
   title,
+  slug,
   description,
   color,
   featured,
@@ -127,10 +135,13 @@ function FeatureCard({
         {description}
       </p>
 
-      <button className="mt-8 flex items-center gap-2 font-semibold text-violet-600 transition-all duration-300 group-hover:gap-4">
+      <Link
+        to={`/features/${slug}`}
+        className="mt-8 inline-flex items-center gap-2 font-semibold text-violet-600 transition-all duration-300 group-hover:gap-4"
+      >
         Learn More
         <ArrowRight size={18} />
-      </button>
+      </Link>
     </motion.div>
   );
 }
