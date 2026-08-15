@@ -1,7 +1,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import axios from "axios";
+import api from "../../api/axios";
 import toast from "react-hot-toast";
 
 import {
@@ -120,9 +120,7 @@ export default function FeatureDetail() {
 
   const fetchPapers = async () => {
     try {
-      const res = await axios.get(
-        "http://localhost:5000/api/papers"
-      );
+      const res = await api.get("/api/papers")
 
       if (res.data?.success) {
         setPapers(res.data.papers || []);
@@ -268,8 +266,9 @@ export default function FeatureDetail() {
          */
 
         const response =
-          await axios.post(
-            "http://localhost:5000/api/papers/upload",
+          await api.post(
+  "/api/papers/upload",
+  
             formData,
             {
               headers: {

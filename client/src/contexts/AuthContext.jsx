@@ -1,56 +1,165 @@
-﻿import React, { createContext, useEffect, useState } from "react";
+﻿import React, {
+  createContext,
+  useEffect,
+  useState,
+} from "react";
 import axios from "axios";
 
-// Default backend URL — update if your server runs on a different host/port
-axios.defaults.baseURL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+// Vite environment variable
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
 
-export const AuthContext = createContext({});
+// Configure Axios
+axios.defaults.baseURL = API_BASE_URL;
+
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // -----------------------------------------
+  // LOAD SAVED AUTHENTICATION
+  // -----------------------------------------
+
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setUser(parsed.user);
-        setToken(parsed.token);
-        if (parsed.token) axios.defaults.headers.common["Authorization"] = `Bearer ${parsed.token}`;
+      // First check the new auth storage
+      const authData = localStorage.getItem("auth");
+
+      if (authData) {
+        const parsed = JSON.parse(authData);
+
+        if (parsed?.user) {
+          setUser(parsed.user);
+        }
+
+        if (parsed?.token) {
+          setToken(parsed.token);
+
+          axios.defaults.headers.common[
+            "Authorization"
+          ] = `Bearer ${parsed.token}`;
+        }
+      } else {
+        /*
+         * Backward compatibility with your
+         * existing Login.jsx
+         */
+        const oldToken =
+          localStorage.getItem("token");
+
+        const oldUser =
+          localStorage.getItem("user");
+
+        if (oldToken) {
+          setToken(oldToken);
+
+          axios.defaults.headers.common[
+            "Authorization"
+          ] = `Bearer ${oldToken}`;
+        }
+
+        if (oldUser) {
+          try {
+            setUser(JSON.parse(oldUser));
+          } catch {
+            console.log(
+              "Invalid stored user data"
+            );
+          }
+        }
       }
-    } catch (e) {
-      // ignore
+    } catch (error) {
+      console.error(
+        "Failed to restore authentication:",
+        error
+      );
+
+      localStorage.removeItem("auth");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const saveAuth = ({ user, token }) => {
+  // -----------------------------------------
+  // SAVE LOGIN
+  // -----------------------------------------
+
+  const saveAuth = ({
+    user,
+    token,
+  }) => {
     try {
-      localStorage.setItem("auth", JSON.stringify({ user, token }));
+      localStorage.setItem(
+        "auth",
+        JSON.stringify({
+          user,
+          token,
+        })
+      );
+
+      // Also keep your existing storage
+      // working with Navbar/Login
+      localStorage.setItem(
+        "user",
+        JSON.stringify(user)
+      );
+
+      localStorage.setItem(
+        "token",
+        token
+      );
+
       setUser(user);
       setToken(token);
-      if (token) axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      else delete axios.defaults.headers.common["Authorization"];
-    } catch (e) {
-      // ignore
+
+      if (token) {
+        axios.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error(
+        "Failed to save authentication:",
+        error
+      );
     }
   };
 
+  // -----------------------------------------
+  // LOGOUT
+  // -----------------------------------------
+
   const logout = () => {
-    try {
-      localStorage.removeItem("auth");
-    } catch {}
+    localStorage.removeItem("auth");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
 
     setUser(null);
     setToken(null);
-    delete axios.defaults.headers.common["Authorization"];
+
+    delete axios.defaults.headers.common[
+      "Authorization"
+    ];
   };
 
+  // -----------------------------------------
+  // CONTEXT
+  // -----------------------------------------
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, saveAuth, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        saveAuth,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

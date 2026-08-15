@@ -319,15 +319,17 @@ export const uploadPaper = async (req, res) => {
 
     const providedFolder =
       req.body.folder?.trim();
+let inferredTitle = originalname;
+let inferredAuthors = [];
+let inferredAbstract = "";
+let inferredTags = [];
+let inferredFolder = "Research Library";
 
-    let inferredTitle = originalname;
-    let inferredAuthors = [];
-    let inferredAbstract = "";
-    let inferredTags = [];
-    let inferredFolder = "Research Library";
+// 📄 Full extracted PDF text
+let extractedContent = "";
 
-    // 🤖 AI topic
-    let aiTopic = "Research";
+// 🤖 AI topic
+let aiTopic = "Research";
 
     /*
      * PDF PROCESSING
@@ -344,6 +346,7 @@ export const uploadPaper = async (req, res) => {
 
       const pdfText =
         await extractTextFromPdf(buffer);
+        extractedContent = pdfText;
 
       if (pdfText) {
         console.log(
@@ -443,23 +446,22 @@ export const uploadPaper = async (req, res) => {
     /*
      * SAVE PAPER
      */
-    const paper = await Paper.create({
-      filename: originalname,
-      title,
-      authors,
-      tags,
-      abstract: inferredAbstract,
-      contentType: mimetype,
-      size,
-      data: buffer,
-      folder,
+  const paper = await Paper.create({
+  filename: originalname,
+  title,
+  authors,
+  tags,
+  abstract: inferredAbstract,
+  content: extractedContent,
+  contentType: mimetype,
+  size,
+  data: buffer,
+  folder,
+  topic: aiTopic,
 
-      // 🤖 AI detected topic
-      topic: aiTopic,
-
-      // We'll connect authentication later
-      // uploadedBy: req.user?.id || null,
-    });
+  // 👤 Logged-in user
+  uploadedBy: req.user.id,
+});
 
     console.log(
       "✅ Paper saved:",
@@ -501,10 +503,12 @@ export const uploadPaper = async (req, res) => {
 
 export const listPapers = async (req, res) => {
   try {
-    const papers = await Paper.find()
+    const papers = await Paper.find({
+      uploadedBy: req.user.id,
+    })
       .sort({ createdAt: -1 })
       .select(
-        "_id filename title authors tags abstract size folder topic createdAt"
+        "_id filename title authors tags abstract size folder topic workspace createdAt"
       );
 
     return res.status(200).json({
@@ -512,10 +516,7 @@ export const listPapers = async (req, res) => {
       papers,
     });
   } catch (error) {
-    console.error(
-      "❌ List papers error:",
-      error
-    );
+    console.error("❌ List papers error:", error);
 
     return res.status(500).json({
       success: false,
@@ -528,9 +529,12 @@ export const downloadPaper = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const paper = await Paper.findById(id).select(
-      "filename contentType data"
-    );
+   const paper = await Paper.findOne({
+  _id: id,
+  uploadedBy: req.user.id,
+}).select(
+  "filename contentType data"
+);
 
     if (!paper) {
       return res.status(404).json({
@@ -556,6 +560,37 @@ export const downloadPaper = async (req, res) => {
       "❌ Download paper error:",
       error
     );
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+export const getPaper = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const paper = await Paper.findOne({
+      _id: id,
+      uploadedBy: req.user.id,
+    }).select(
+      "_id filename title authors tags abstract content topic workspace createdAt"
+    );
+
+    if (!paper) {
+      return res.status(404).json({
+        success: false,
+        message: "Paper not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      paper,
+    });
+  } catch (error) {
+    console.error("❌ Get paper error:", error);
 
     return res.status(500).json({
       success: false,
