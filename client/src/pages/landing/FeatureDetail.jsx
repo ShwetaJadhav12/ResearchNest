@@ -114,11 +114,7 @@ export default function FeatureDetail() {
    * FETCH PAPERS
    */
 
-  useEffect(() => {
-    fetchPapers();
-  }, []);
-
-  const fetchPapers = async () => {
+  async function fetchPapers() {
     try {
       const res = await api.get("/api/papers")
 
@@ -135,7 +131,11 @@ export default function FeatureDetail() {
         "Unable to load your research papers"
       );
     }
-  };
+  }
+
+  useEffect(() => {
+    fetchPapers();
+  }, []);
 
   /*
    * AI WORKSPACES

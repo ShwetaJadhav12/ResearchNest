@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import researchAIRoutes from "./routes/researchAIRoutes.js";
+import workspaceRoutes from "./routes/workspaceRoutes.js";
 
 const app = express();
 
@@ -26,5 +27,9 @@ app.use("/api/auth", (await import("./routes/authRoutes.js")).default);
 
 app.use("/api/papers", (await import("./routes/paperRoutes.js")).default);
 app.use("/api/ai", researchAIRoutes);
+app.use(
+  "/api/workspaces",
+  workspaceRoutes
+);
 
 export default app;

@@ -11,27 +11,27 @@ const workspaceSchema = new mongoose.Schema(
     description: {
       type: String,
       default: "",
-      trim: true,
     },
 
-    owner: {
+    topic: {
+      type: String,
+      default: "Research",
+    },
+
+    createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
-
-    papers: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Paper",
-      },
-    ],
   },
   {
     timestamps: true,
   }
 );
 
-const Workspace = mongoose.model("Workspace", workspaceSchema);
+const Workspace = mongoose.model(
+  "Workspace",
+  workspaceSchema
+);
 
 export default Workspace;

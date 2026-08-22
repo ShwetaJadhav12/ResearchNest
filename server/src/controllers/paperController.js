@@ -1,5 +1,6 @@
 import pdfParse from "pdf-parse";
 import Paper from "../models/Paper.js";
+import Workspace from "../models/Workspace.js";
 import { classifyPaperTopic } from "../services/paperAIService.js";
 
 const stopWords = new Set([
@@ -404,6 +405,7 @@ let aiTopic = "Research";
       );
     }
   }
+  
 
   aiTopic = aiResult?.topic || "Research";
 
@@ -423,7 +425,38 @@ let aiTopic = "Research";
 }
       }
     }
+    let workspace = null;
 
+try {
+  workspace = await Workspace.findOne({
+    name: aiTopic,
+    createdBy: req.user.id,
+  });
+
+  if (!workspace) {
+    workspace = await Workspace.create({
+      name: aiTopic,
+      topic: aiTopic,
+      description: `Research papers related to ${aiTopic}`,
+      createdBy: req.user.id,
+    });
+
+    console.log(
+      "📁 Created workspace:",
+      workspace.name
+    );
+  } else {
+    console.log(
+      "📁 Using existing workspace:",
+      workspace.name
+    );
+  }
+} catch (error) {
+  console.error(
+    "❌ Workspace creation failed:",
+    error.message
+  );
+}
     /*
      * FINAL PAPER VALUES
      */
@@ -446,22 +479,26 @@ let aiTopic = "Research";
     /*
      * SAVE PAPER
      */
-  const paper = await Paper.create({
+const paper = await Paper.create({
   filename: originalname,
   title,
   authors,
   tags,
   abstract: inferredAbstract,
-  content: extractedContent,
   contentType: mimetype,
   size,
   data: buffer,
   folder,
+
+  // AI classification
   topic: aiTopic,
 
-  // 👤 Logged-in user
+  // Logged-in user
   uploadedBy: req.user.id,
-});
+
+  // Workspace created/reused above
+  workspace: workspace?._id || null,
+}); 
 
     console.log(
       "✅ Paper saved:",

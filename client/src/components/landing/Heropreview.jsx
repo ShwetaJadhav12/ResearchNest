@@ -4,7 +4,6 @@ import {
   Bot,
   Share2,
   BarChart3,
-  Search,
   CheckCircle2,
 } from "lucide-react";
 

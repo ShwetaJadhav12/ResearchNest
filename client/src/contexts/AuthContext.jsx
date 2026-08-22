@@ -16,6 +16,7 @@ axios.defaults.baseURL = API_BASE_URL;
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  void React;
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);

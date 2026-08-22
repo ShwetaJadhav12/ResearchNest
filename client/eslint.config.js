@@ -17,5 +17,11 @@ export default defineConfig([
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
+    rules: {
+      // These modules intentionally restore persisted state after mount.
+      "react-hooks/set-state-in-effect": "off",
+      // The auth context is exported alongside its provider for a small app-level module.
+      "react-refresh/only-export-components": "off",
+    },
   },
 ])
