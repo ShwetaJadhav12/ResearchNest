@@ -405,7 +405,6 @@ let aiTopic = "Research";
       );
     }
   }
-  
 
   aiTopic = aiResult?.topic || "Research";
 
@@ -457,6 +456,7 @@ try {
     error.message
   );
 }
+
     /*
      * FINAL PAPER VALUES
      */
@@ -479,26 +479,22 @@ try {
     /*
      * SAVE PAPER
      */
-const paper = await Paper.create({
-  filename: originalname,
-  title,
-  authors,
-  tags,
-  abstract: inferredAbstract,
-  contentType: mimetype,
-  size,
-  data: buffer,
-  folder,
+    const paper = await Paper.create({
+      filename: originalname,
+      title,
+      authors,
+      tags,
+      abstract: inferredAbstract,
+      content: extractedContent,
+      contentType: mimetype,
+      size,
+      data: buffer,
+      folder,
+      topic: aiTopic,
+      uploadedBy: req.user.id,
+      workspace: workspace?._id || null,
+    });
 
-  // AI classification
-  topic: aiTopic,
-
-  // Logged-in user
-  uploadedBy: req.user.id,
-
-  // Workspace created/reused above
-  workspace: workspace?._id || null,
-}); 
 
     console.log(
       "✅ Paper saved:",

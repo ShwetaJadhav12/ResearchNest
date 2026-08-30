@@ -20,14 +20,15 @@ const features = [
     color: "bg-violet-100 text-violet-700",
   },
   {
-    icon: Sparkles,
-    title: "AI Research Assistant",
-    slug: "ai-research-assistant",
-    description:
-      "Summarize papers, answer questions, compare studies, and generate literature reviews instantly.",
-    color: "bg-pink-100 text-pink-600",
-    featured: true,
-  },
+  icon: Sparkles,
+  title: "AI Research Assistant",
+  slug: "ai-research-assistant",
+  path: "/research",
+  description:
+    "Summarize papers, answer questions, compare studies, and generate literature reviews instantly.",
+  color: "bg-pink-100 text-pink-600",
+  featured: true,
+},
   {
     icon: Brain,
     title: "Knowledge Graph",
@@ -105,10 +106,11 @@ function FeatureCard({
   icon: Icon,
   title,
   slug,
+  path,
   description,
   color,
   featured,
-}) {
+})  {
   return (
     <motion.div
       whileHover={{
@@ -136,8 +138,7 @@ function FeatureCard({
       </p>
 
       <Link
-        to={`/features/${slug}`}
-        className="mt-8 inline-flex items-center gap-2 font-semibold text-violet-600 transition-all duration-300 group-hover:gap-4"
+to={path || `/features/${slug}`}        className="mt-8 inline-flex items-center gap-2 font-semibold text-violet-600 transition-all duration-300 group-hover:gap-4"
       >
         Learn More
         <ArrowRight size={18} />
