@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import researchAIRoutes from "./routes/researchAIRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
+import knowledgeGraphRoutes from "./routes/knowledgeGraphRoutes.js";
 
 const app = express();
 
@@ -36,5 +37,9 @@ app.use("/api/ai", researchAIRoutes);
 app.use(
   "/api/workspaces",
   workspaceRoutes
+);
+app.use(
+  "/api/knowledge-graph",
+  knowledgeGraphRoutes
 );
 export default app;

@@ -29,14 +29,15 @@ const features = [
   color: "bg-pink-100 text-pink-600",
   featured: true,
 },
-  {
-    icon: Brain,
-    title: "Knowledge Graph",
-    slug: "knowledge-graph",
-    description:
-      "Automatically connect concepts, authors, and research topics into one visual network.",
-    color: "bg-emerald-100 text-emerald-600",
-  },
+ {
+  icon: Brain,
+  title: "Knowledge Graph",
+  slug: "knowledge-graph",
+  path: "/knowledge-graph",
+  description:
+    "Automatically connect concepts, authors, and research topics into one visual network.",
+  color: "bg-emerald-100 text-emerald-600",
+},
   {
     icon: PenTool,
     title: "Smart Notes",
@@ -110,7 +111,7 @@ function FeatureCard({
   description,
   color,
   featured,
-})  {
+})   {
   return (
     <motion.div
       whileHover={{

@@ -7,6 +7,7 @@ import Register from "./pages/auth/Register";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Projects from "./pages/projects/Projects";
 import ResearchAssistant from "./pages/research/ResearchAssistant";
+import KnowledgeGraph from "./pages/knowledge/KnowledgeGraph";
 
 function App() {
   return (
@@ -19,6 +20,10 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/research" element={<ResearchAssistant />} />
+        <Route
+          path="/knowledge-graph"
+          element={<KnowledgeGraph />}
+        />
       </Routes>
     </BrowserRouter>
   );
