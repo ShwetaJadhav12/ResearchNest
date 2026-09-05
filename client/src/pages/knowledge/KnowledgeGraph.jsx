@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
 import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+} from "@xyflow/react";
+
+import "@xyflow/react/dist/style.css";
+import {
   BrainCircuit,
   FileText,
   Network,
@@ -10,17 +18,56 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
+
+
 export default function KnowledgeGraph() {
   const [papers, setPapers] = useState([]);
-  const [workspaces, setWorkspaces] = useState([]);
+const [workspaces, setWorkspaces] = useState([]);
 
-  const [workspaceId, setWorkspaceId] = useState("");
-  const [search, setSearch] = useState("");
+const [graphNodes, setGraphNodes] = useState([]);
+const [graphEdges, setGraphEdges] = useState([]);
 
-  const [selectedPaper, setSelectedPaper] = useState(null);
+const [workspaceId, setWorkspaceId] = useState("");
+const [search, setSearch] = useState("");
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+const [selectedPaper, setSelectedPaper] = useState(null);
+
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState("");
+const loadKnowledgeGraph = async () => {
+  try {
+    setLoading(true);
+    setError("");
+
+    const url = workspaceId
+      ? `/api/knowledge-graph?workspaceId=${workspaceId}`
+      : "/api/knowledge-graph";
+
+    const response = await axios.get(url);
+
+    const graph = response.data.graph;
+
+    setGraphNodes(graph.nodes || []);
+    setGraphEdges(graph.edges || []);
+
+  } catch (error) {
+    console.error(
+      "Failed to load knowledge graph:",
+      error
+    );
+
+    setError(
+      error.response?.data?.message ||
+        "Unable to load knowledge graph."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
+    loadKnowledgeGraph();
+  }, [workspaceId]);
 
   useEffect(() => {
     loadResearchData();
@@ -92,7 +139,159 @@ export default function KnowledgeGraph() {
       matchesSearch
     );
   });
+  
 
+const paperNodes = graphNodes.filter(
+  (node) => node.type === "paper"
+);
+
+const topicNodes = graphNodes.filter(
+  (node) => node.type === "topic"
+);
+
+const authorNodes = graphNodes.filter(
+  (node) => node.type === "author"
+);
+
+const tagNodes = graphNodes.filter(
+  (node) => node.type === "tag"
+);
+
+const flowNodes = [
+  // PAPERS
+  ...paperNodes.map((node, index) => ({
+    id: node.id,
+
+    position: {
+      x: 450 + (index % 3) * 280,
+      y: 280 + Math.floor(index / 3) * 220,
+    },
+
+    data: {
+      label: node.label,
+      originalNode: node,
+    },
+
+    style: {
+      width: 220,
+      padding: "16px",
+      borderRadius: "18px",
+      border: "2px solid #8b5cf6",
+      background: "#f5f3ff",
+      fontSize: "13px",
+      fontWeight: 700,
+      color: "#312e81",
+      boxShadow:
+        "0 10px 30px rgba(76, 29, 149, 0.12)",
+    },
+  })),
+
+  // TOPICS
+  ...topicNodes.map((node, index) => ({
+    id: node.id,
+
+    position: {
+      x: 150 + index * 260,
+      y: 40,
+    },
+
+    data: {
+      label: node.label,
+      originalNode: node,
+    },
+
+    style: {
+      width: 170,
+      padding: "14px",
+      borderRadius: "16px",
+      border: "2px solid #c4b5fd",
+      background: "#ede9fe",
+      fontSize: "12px",
+      fontWeight: 700,
+      color: "#5b21b6",
+    },
+  })),
+
+  // AUTHORS
+  ...authorNodes.map((node, index) => ({
+    id: node.id,
+
+    position: {
+      x: 40 + index * 220,
+      y: 700,
+    },
+
+    data: {
+      label: node.label,
+      originalNode: node,
+    },
+
+    style: {
+      width: 150,
+      padding: "12px",
+      borderRadius: "14px",
+      border: "1px solid #cbd5e1",
+      background: "#ffffff",
+      fontSize: "11px",
+      fontWeight: 600,
+      color: "#475569",
+    },
+  })),
+
+  // CONCEPTS / TAGS
+  ...tagNodes.map((node, index) => ({
+    id: node.id,
+
+    position: {
+      x: 850 + (index % 3) * 170,
+      y: 80 + Math.floor(index / 3) * 100,
+    },
+
+    data: {
+      label: node.label,
+      originalNode: node,
+    },
+
+    style: {
+      width: 130,
+      padding: "10px",
+      borderRadius: "999px",
+      border: "1px solid #ddd6fe",
+      background: "#ffffff",
+      fontSize: "10px",
+      fontWeight: 600,
+      color: "#7c3aed",
+    },
+  })),
+];
+
+const flowEdges = graphEdges.map((edge) => ({
+  id: edge.id,
+  source: edge.source,
+  target: edge.target,
+
+  label:
+    edge.relationship === "RELATED_RESEARCH"
+      ? "Related"
+      : edge.relationship
+          .replaceAll("_", " ")
+          .toLowerCase(),
+
+  animated:
+    edge.relationship === "RELATED_RESEARCH",
+
+  style: {
+    strokeWidth:
+      edge.relationship === "RELATED_RESEARCH"
+        ? 3
+        : 1.5,
+  },
+
+  labelStyle: {
+    fontSize: 10,
+    fontWeight: 600,
+  },
+}));
   return (
     <div className="min-h-screen bg-[#FAF7FF]">
 
@@ -378,104 +577,38 @@ export default function KnowledgeGraph() {
                 !error &&
                 filteredPapers.length > 0 && (
 
-                  <div className="relative min-h-[600px] p-8">
+<div className="relative min-h-[750px] p-8">
+  
+<div className="h-[750px] w-full">
+  <ReactFlow
+    nodes={flowNodes}
+    edges={flowEdges}
+    fitView
+    onNodeClick={(event, node) => {
 
-                    {/* CENTER */}
+      const original =
+        node.data.originalNode;
 
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+      if (
+        original?.type === "paper"
+      ) {
+        setSelectedPaper(
+          original.data
+        );
+      }
 
-                      <div className="flex h-28 w-28 items-center justify-center rounded-full border-8 border-violet-100 bg-violet-600 text-center text-white shadow-xl">
+    }}
+  >
 
-                        <div>
+    <Background />
 
-                          <BrainCircuit
-                            size={28}
-                            className="mx-auto"
-                          />
+    <Controls />
 
-                          <p className="mt-1 text-xs font-bold">
-                            Research
-                          </p>
+    <MiniMap />
 
-                        </div>
+  </ReactFlow>
 
-                      </div>
-
-                    </div>
-
-                    {/* PAPER NODES */}
-
-                    {filteredPapers
-                      .slice(0, 8)
-                      .map(
-                        (
-                          paper,
-                          index
-                        ) => {
-
-                          const positions = [
-                            "left-[6%] top-[15%]",
-                            "left-[38%] top-[8%]",
-                            "right-[7%] top-[16%]",
-                            "right-[4%] top-[47%]",
-                            "right-[12%] bottom-[10%]",
-                            "left-[39%] bottom-[8%]",
-                            "left-[7%] bottom-[13%]",
-                            "left-[3%] top-[47%]",
-                          ];
-
-                          const selected =
-                            selectedPaper?._id ===
-                            paper._id;
-
-                          return (
-                            <button
-                              key={
-                                paper._id
-                              }
-                              onClick={() =>
-                                setSelectedPaper(
-                                  paper
-                                )
-                              }
-                              className={`absolute ${positions[index]} w-40 -translate-y-1/2 rounded-2xl border bg-white p-3 text-left shadow-lg transition-all hover:scale-105 ${
-                                selected
-                                  ? "border-violet-500 ring-4 ring-violet-100"
-                                  : "border-white"
-                              }`}
-                            >
-
-                              <div className="flex items-center gap-2">
-
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
-
-                                  <FileText
-                                    size={15}
-                                  />
-
-                                </div>
-
-                                <span className="text-[10px] font-bold uppercase text-violet-500">
-                                  Paper
-                                </span>
-
-                              </div>
-
-                              <p className="mt-2 line-clamp-3 text-xs font-bold text-slate-700">
-                                {paper.title ||
-                                  paper.filename}
-                              </p>
-
-                              {paper.topic && (
-                                <p className="mt-2 truncate text-[10px] text-slate-400">
-                                  {paper.topic}
-                                </p>
-                              )}
-
-                            </button>
-                          );
-                        }
-                      )}
+</div>
 
                   </div>
 

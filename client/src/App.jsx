@@ -6,7 +6,10 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Dashboard from "./pages/dashboard/Dashboard";
 import Projects from "./pages/projects/Projects";
+import WorkspaceDetail from "./pages/projects/WorkspaceDetail";
 import ResearchAssistant from "./pages/research/ResearchAssistant";
+import PaperReader from "./pages/reader/PaperReader";
+import ResearchDiscovery from "./pages/discovery/ResearchDiscovery";
 import KnowledgeGraph from "./pages/knowledge/KnowledgeGraph";
 
 function App() {
@@ -19,11 +22,12 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
+        <Route path="/projects/:workspaceId" element={<WorkspaceDetail />} />
+        <Route path="/workspaces/:workspaceId" element={<WorkspaceDetail />} />
         <Route path="/research" element={<ResearchAssistant />} />
-        <Route
-          path="/knowledge-graph"
-          element={<KnowledgeGraph />}
-        />
+        <Route path="/reader/:paperId" element={<PaperReader />} />
+        <Route path="/discovery" element={<ResearchDiscovery />} />
+        <Route path="/knowledge-graph" element={<KnowledgeGraph />} />
       </Routes>
     </BrowserRouter>
   );

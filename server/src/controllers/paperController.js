@@ -1,6 +1,7 @@
 import pdfParse from "pdf-parse";
 import Paper from "../models/Paper.js";
 import Workspace from "../models/Workspace.js";
+import Activity from "../models/Activity.js";
 import { classifyPaperTopic } from "../services/paperAIService.js";
 
 const stopWords = new Set([
@@ -501,6 +502,20 @@ try {
       paper.title
     );
 
+    if (paper.workspace) {
+      try {
+        await Activity.create({
+          workspace: paper.workspace,
+          user: req.user.id,
+          type: "paper_added",
+          description: `${req.user.fullName || "A researcher"} uploaded paper "${paper.title}"`,
+          metadata: { paperId: paper._id },
+        });
+      } catch (actErr) {
+        console.warn("Activity log failed:", actErr.message);
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: "Paper uploaded successfully",
@@ -536,12 +551,20 @@ try {
 
 export const listPapers = async (req, res) => {
   try {
+    const userWorkspaces = await Workspace.find({
+      $or: [{ createdBy: req.user.id }, { "members.user": req.user.id }],
+    }).select("_id");
+    const workspaceIds = userWorkspaces.map((w) => w._id);
+
     const papers = await Paper.find({
-      uploadedBy: req.user.id,
+      $or: [
+        { uploadedBy: req.user.id },
+        { workspace: { $in: workspaceIds } },
+      ],
     })
       .sort({ createdAt: -1 })
       .select(
-        "_id filename title authors tags abstract size folder topic workspace createdAt"
+        "_id filename title authors tags abstract size folder topic workspace source doi journal year citationCount pdfUrl createdAt"
       );
 
     return res.status(200).json({
@@ -558,41 +581,63 @@ export const listPapers = async (req, res) => {
   }
 };
 
+const checkPaperAccess = async (paperId, userId) => {
+  const paper = await Paper.findById(paperId);
+  if (!paper) return null;
+
+  if (paper.uploadedBy && String(paper.uploadedBy) === String(userId)) {
+    return paper;
+  }
+
+  if (paper.workspace) {
+    const ws = await Workspace.findById(paper.workspace);
+    if (ws) {
+      if (String(ws.createdBy) === String(userId)) return paper;
+      const isMember = (ws.members || []).some(
+        (m) => String(m.user) === String(userId)
+      );
+      if (isMember) return paper;
+    }
+  }
+
+  return null;
+};
+
 export const downloadPaper = async (req, res) => {
   try {
     const { id } = req.params;
-
-   const paper = await Paper.findOne({
-  _id: id,
-  uploadedBy: req.user.id,
-}).select(
-  "filename contentType data"
-);
+    const paper = await checkPaperAccess(id, req.user.id);
 
     if (!paper) {
       return res.status(404).json({
         success: false,
-        message: "Not found",
+        message: "Paper not found or access denied.",
+      });
+    }
+
+    if (!paper.data || paper.data.length === 0) {
+      if (paper.pdfUrl) {
+        return res.redirect(paper.pdfUrl);
+      }
+      return res.status(404).json({
+        success: false,
+        message: "PDF data not available for download.",
       });
     }
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${paper.filename}"`
+      `attachment; filename="${paper.filename || "paper.pdf"}"`
     );
 
     res.setHeader(
       "Content-Type",
-      paper.contentType ||
-        "application/octet-stream"
+      paper.contentType || "application/pdf"
     );
 
     return res.send(paper.data);
   } catch (error) {
-    console.error(
-      "❌ Download paper error:",
-      error
-    );
+    console.error("❌ Download paper error:", error);
 
     return res.status(500).json({
       success: false,
@@ -600,27 +645,82 @@ export const downloadPaper = async (req, res) => {
     });
   }
 };
-export const getPaper = async (req, res) => {
+
+export const viewPaperInline = async (req, res) => {
   try {
     const { id } = req.params;
-
-    const paper = await Paper.findOne({
-      _id: id,
-      uploadedBy: req.user.id,
-    }).select(
-      "_id filename title authors tags abstract content topic workspace createdAt"
-    );
+    const paper = await checkPaperAccess(id, req.user.id);
 
     if (!paper) {
       return res.status(404).json({
         success: false,
-        message: "Paper not found",
+        message: "Paper not found or access denied.",
+      });
+    }
+
+    if (!paper.data || paper.data.length === 0) {
+      if (paper.pdfUrl) {
+        return res.redirect(paper.pdfUrl);
+      }
+      return res.status(404).json({
+        success: false,
+        message: "PDF data not available.",
+      });
+    }
+
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${paper.filename || "paper.pdf"}"`
+    );
+
+    res.setHeader(
+      "Content-Type",
+      paper.contentType || "application/pdf"
+    );
+
+    return res.send(paper.data);
+  } catch (error) {
+    console.error("❌ View paper inline error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+export const getPaper = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const paper = await checkPaperAccess(id, req.user.id);
+
+    if (!paper) {
+      return res.status(404).json({
+        success: false,
+        message: "Paper not found or access denied.",
       });
     }
 
     return res.status(200).json({
       success: true,
-      paper,
+      paper: {
+        _id: paper._id,
+        filename: paper.filename,
+        title: paper.title,
+        authors: paper.authors,
+        tags: paper.tags,
+        abstract: paper.abstract,
+        content: paper.content,
+        topic: paper.topic,
+        workspace: paper.workspace,
+        source: paper.source,
+        doi: paper.doi,
+        journal: paper.journal,
+        year: paper.year,
+        citationCount: paper.citationCount,
+        pdfUrl: paper.pdfUrl,
+        hasPdfBinary: Boolean(paper.data && paper.data.length > 0),
+        createdAt: paper.createdAt,
+      },
     });
   } catch (error) {
     console.error("❌ Get paper error:", error);

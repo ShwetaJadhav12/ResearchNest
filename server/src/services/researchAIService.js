@@ -141,3 +141,303 @@ export const answerAcrossPapers = async (papers, question) => {
   const result = parseJson(response.text?.trim() || "");
   return { ...result, sources: passages.map(({ title, index, text }) => ({ title, passage: index, excerpt: text.slice(0, 220) })) };
 };
+
+// =========================================================================
+// CITATION INTEGRATION & ACADEMIC PAPER / SURVEY GENERATOR
+// Supported styles: IEEE, APA 7, MLA, Chicago, Harvard, BibTeX
+// Sections: Abstract, Introduction, Literature Review, Methodology, Results,
+//           Discussion, Conclusion, Future Work, or Full Paper
+// =========================================================================
+export const generateAcademicPaperWithCitations = async ({
+  papers,
+  topic = "",
+  section = "Full Paper",
+  citationStyle = "IEEE",
+  focus = "",
+}) => {
+  const ai = getAI();
+
+  // Create authoritative citation source list
+  const sourceCatalogue = papers.map((p, idx) => {
+    const authorsStr = Array.isArray(p.authors) && p.authors.length ? p.authors.join(", ") : "Unknown Author";
+    const yearStr = p.year || (p.createdAt ? new Date(p.createdAt).getFullYear() : 2024);
+    const journalStr = p.journal || "Academic Repository";
+    const doiStr = p.doi ? `DOI: ${p.doi}` : "";
+    return {
+      index: idx + 1,
+      id: p._id,
+      title: p.title || p.filename,
+      authors: authorsStr,
+      firstAuthor: authorsStr.split(",")[0].trim().split(" ").pop(),
+      year: yearStr,
+      journal: journalStr,
+      doi: doiStr,
+      abstract: p.abstract || "",
+      excerpt: (p.content || "").slice(0, 4000),
+    };
+  });
+
+  const prompt = `You are ResearchNest AI, an elite academic writing engine.
+Your mission is to generate high-standard academic writing with RIGOROUS, ACCURATE IN-TEXT CITATIONS and a COMPLETE REFERENCE LIST based SOLELY on the supplied research papers.
+
+TARGET SECTION: ${section}
+TOPIC / TITLE: ${topic || "Academic Research Synthesis"}
+FOCUS / INSTRUCTIONS: ${focus || "Comprehensive synthesis and rigorous critical analysis"}
+CITATION STYLE: ${citationStyle}
+
+SUPPLIED PAPERS CATALOGUE (Base all in-text citations and references ONLY on these):
+${sourceCatalogue
+  .map(
+    (s) =>
+      `[Ref #${s.index}] Title: "${s.title}" | Authors: ${s.authors} | Year: ${s.year} | Venue: ${s.journal} ${s.doi}\nAbstract: ${s.abstract}\nKey text: ${s.excerpt}`
+  )
+  .join("\n\n---\n\n")}
+
+CRITICAL CITATION RULES:
+1. CITATION STYLE IN-TEXT FORMAT:
+   - If IEEE: Use numbered brackets like [1], [2], [1, 2] corresponding directly to the reference list numbers.
+   - If APA 7: Use (Author, Year) or Author (Year). For 3+ authors use (Author et al., Year).
+   - If MLA: Use (Author) or (Author Page).
+   - If Chicago: Use (Author Year).
+   - If Harvard: Use (Author, Year).
+   - If BibTeX: Use \\cite{citationKey} e.g. \\cite{author2024}.
+2. REFERENCE LIST:
+   - Format each reference strictly according to ${citationStyle} standard conventions.
+   - Do NOT invent or fabricate papers, journals, or DOIs not present in the catalogue.
+   - References must correspond 1:1 to the sources cited in the prose.
+3. ACADEMIC TONE:
+   - Publication-ready, clear, objective, analytical.
+   - If generating "Full Paper", include standard subsections (Abstract, Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, Future Work).
+   - If a single section is requested (e.g., "Literature Review" or "Methodology"), produce an exhaustive, deep section text with embedded citations.
+
+Return ONLY a valid JSON object matching this schema (do not wrap in markdown fences):
+{
+  "title": "Clear academic title",
+  "section": "${section}",
+  "citationStyle": "${citationStyle}",
+  "content": "The complete generated academic prose with properly formatted in-text citations...",
+  "sections": [
+    { "heading": "Heading Name", "body": "Prose content..." }
+  ],
+  "references": [
+    { "index": 1, "text": "Full formatted citation string according to ${citationStyle}" }
+  ],
+  "bibtex": "Full @article or @inproceedings BibTeX entries for each paper cited",
+  "keyTakeaways": ["Key insight 1", "Key insight 2"]
+}`;
+
+  console.log(`🤖 Generating academic writing (${section}) with ${citationStyle} citations...`);
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  const rawText = response.text?.trim() || "";
+  return parseJson(rawText);
+};
+
+// =========================================================================
+// DEEP COMPONENT EXTRACTION
+// Extracts: datasets, methodologies, models, findings, timelines, limitations
+// =========================================================================
+export const extractAcademicComponents = async ({ papers, componentType = "datasets" }) => {
+  const ai = getAI();
+
+  const evidence = papers
+    .map(
+      (p) =>
+        `PAPER: ${p.title || p.filename}\nAUTHORS: ${p.authors?.join(", ") || "Unknown"}\nABSTRACT: ${p.abstract}\nCONTENT: ${(p.content || "").slice(0, 7000)}`
+    )
+    .join("\n\n---\n\n");
+
+  let prompt = "";
+  switch (componentType) {
+    case "datasets":
+      prompt = `Extract all datasets, benchmarks, evaluation corpora, and data sources used across the papers.
+Return ONLY valid JSON:
+{
+  "component": "datasets",
+  "items": [
+    {
+      "name": "Dataset Name",
+      "paperTitle": "Paper that used it",
+      "description": "Characteristics, size, modality (text, image, tabular, etc.)",
+      "benchmarkTask": "Target task or benchmark metric",
+      "availability": "Public / Private / Unknown"
+    }
+  ],
+  "synthesis": "Comparative summary of data landscape across these papers"
+}
+EVIDENCE:
+${evidence}`;
+      break;
+
+    case "methodologies":
+      prompt = `Extract and analyze all core methodologies, theoretical frameworks, and research paradigms from the papers.
+Return ONLY valid JSON:
+{
+  "component": "methodologies",
+  "items": [
+    {
+      "name": "Methodology Name",
+      "paperTitle": "Paper",
+      "type": "Empirical / Theoretical / Experimental / Survey",
+      "description": "Detailed explanation of the protocol or framework",
+      "novelty": "What is new or unique about this approach"
+    }
+  ],
+  "synthesis": "Cross-study synthesis of methodological evolution"
+}
+EVIDENCE:
+${evidence}`;
+      break;
+
+    case "models":
+      prompt = `Extract all AI/ML models, neural architectures, mathematical algorithms, and baseline algorithms from the papers.
+Return ONLY valid JSON:
+{
+  "component": "models",
+  "items": [
+    {
+      "name": "Model or Algorithm Name",
+      "paperTitle": "Paper",
+      "architecture": "Transformer, CNN, GNN, Bayesian, etc.",
+      "keyMechanisms": "Attention mechanisms, loss formulations, training strategies",
+      "reportedPerformance": "Accuracy, F1, latency or metrics reported"
+    }
+  ],
+  "synthesis": "Comparative analysis of model architectures"
+}
+EVIDENCE:
+${evidence}`;
+      break;
+
+    case "timelines":
+      prompt = `Synthesize a chronological research timeline tracking how the ideas and contributions evolved across these papers.
+Return ONLY valid JSON:
+{
+  "component": "timelines",
+  "items": [
+    {
+      "year": 2023,
+      "paperTitle": "Paper",
+      "milestone": "Key contribution or advance",
+      "significance": "Impact on subsequent research"
+    }
+  ],
+  "trajectory": "Overall evolution and direction of this research trajectory"
+}
+EVIDENCE:
+${evidence}`;
+      break;
+
+    case "limitations":
+      prompt = `Extract and critically synthesize all stated and unstated limitations, research gaps, and constraints across these papers.
+Return ONLY valid JSON:
+{
+  "component": "limitations",
+  "items": [
+    {
+      "paperTitle": "Paper",
+      "limitation": "Specific constraint, bias, or computational bottleneck",
+      "implication": "How this impacts real-world deployment or validity",
+      "suggestedFutureWork": "Potential remedy or direction"
+    }
+  ],
+  "synthesis": "Common unaddressed bottlenecks across the entire literature"
+}
+EVIDENCE:
+${evidence}`;
+      break;
+
+    default:
+      prompt = `Extract important findings and insights from these papers.
+Return ONLY valid JSON:
+{
+  "component": "findings",
+  "items": [
+    {
+      "paperTitle": "Paper",
+      "finding": "Key finding",
+      "evidence": "Supporting qualitative or quantitative data"
+    }
+  ],
+  "synthesis": "Comprehensive takeaways"
+}
+EVIDENCE:
+${evidence}`;
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  return parseJson(response.text?.trim() || "{}");
+};
+
+// =========================================================================
+// AI RESEARCH DISCOVERY OVERVIEW
+// Synthesizes retrieved search results into strategic academic insights
+// =========================================================================
+export const generateDiscoveryOverview = async ({ papers, topic }) => {
+  const ai = getAI();
+
+  const paperSummaries = papers.slice(0, 15).map((p, i) =>
+    `[${i + 1}] Title: "${p.title}" (${p.year})
+Authors: ${p.authors?.join(", ") || "Unknown"} | Venue: ${p.journal || "Unknown"}
+Abstract: ${(p.abstract || "").slice(0, 500)}
+Concepts: ${p.topics?.join(", ") || "N/A"}`
+  ).join("\n\n");
+
+  const prompt = `You are ResearchNest AI, an advanced research intelligence analyst.
+Analyze the following ${papers.length} real academic research papers retrieved for the topic: "${topic}".
+
+Generate a structured academic research intelligence overview based STRICTLY on the retrieved papers.
+
+Return ONLY a valid JSON object matching this schema (do not wrap in markdown fences):
+{
+  "topic": "${topic}",
+  "executiveSummary": "A concise 2-3 sentence state-of-the-art overview of this topic based on the retrieved papers.",
+  "majorResearchAreas": [
+    {
+      "name": "Area Name",
+      "description": "What this subfield explores",
+      "trend": "Growing / Established / Emerging",
+      "paperTitles": ["Representative Paper Title"]
+    }
+  ],
+  "commonMethods": [
+    {
+      "method": "Method or Framework Name",
+      "description": "How researchers utilize it in these papers"
+    }
+  ],
+  "emergingDirections": [
+    {
+      "direction": "Emerging topic / hypothesis",
+      "whyItMatters": "Why this is becoming important"
+    }
+  ],
+  "importantThemes": [
+    "Theme or consensus observed in the literature"
+  ],
+  "researchOpportunities": [
+    {
+      "opportunity": "Identified gap or opportunity",
+      "potentialImpact": "Significance if addressed"
+    }
+  ]
+}
+
+RETRIEVED RESEARCH PAPERS:
+${paperSummaries}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  return parseJson(response.text?.trim() || "{}");
+};

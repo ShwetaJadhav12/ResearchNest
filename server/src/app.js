@@ -4,6 +4,9 @@ import cookieParser from "cookie-parser";
 import researchAIRoutes from "./routes/researchAIRoutes.js";
 import workspaceRoutes from "./routes/workspaceRoutes.js";
 import knowledgeGraphRoutes from "./routes/knowledgeGraphRoutes.js";
+import readerRoutes from "./routes/readerRoutes.js";
+import discoveryRoutes from "./routes/discoveryRoutes.js";
+import collaborationRoutes from "./routes/collaborationRoutes.js";
 
 const app = express();
 
@@ -31,15 +34,12 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", (await import("./routes/authRoutes.js")).default);
-
 app.use("/api/papers", (await import("./routes/paperRoutes.js")).default);
 app.use("/api/ai", researchAIRoutes);
-app.use(
-  "/api/workspaces",
-  workspaceRoutes
-);
-app.use(
-  "/api/knowledge-graph",
-  knowledgeGraphRoutes
-);
+app.use("/api/workspaces", workspaceRoutes);
+app.use("/api/reader", readerRoutes);
+app.use("/api/discovery", discoveryRoutes);
+app.use("/api/collaboration", collaborationRoutes);
+app.use("/api/knowledge-graph", knowledgeGraphRoutes);
+
 export default app;

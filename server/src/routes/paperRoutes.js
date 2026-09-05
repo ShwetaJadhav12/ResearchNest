@@ -6,6 +6,7 @@ import {
   listPapers,
   downloadPaper,
   getPaper,
+  viewPaperInline,
 } from "../controllers/paperController.js";
 
 import { protect } from "../middleware/authMiddleware.js";
@@ -53,6 +54,16 @@ router.get(
 // GET SINGLE PAPER
 // Used by AI Research Assistant
 // ===============================
+
+// ===============================
+// VIEW PAPER INLINE (PDF VIEWER)
+// ===============================
+
+router.get(
+  "/:id/view",
+  protect,
+  viewPaperInline
+);
 
 router.get(
   "/:id",

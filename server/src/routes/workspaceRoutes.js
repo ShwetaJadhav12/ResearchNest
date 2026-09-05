@@ -1,29 +1,19 @@
 import express from "express";
-
 import {
   getMyWorkspaces,
   getWorkspacePapers,
+  createWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
 } from "../controllers/workspaceController.js";
-
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-
-// Get logged-in user's workspaces
-router.get(
-  "/",
-  protect,
-  getMyWorkspaces
-);
-
-
-// Get papers inside a workspace
-router.get(
-  "/:workspaceId/papers",
-  protect,
-  getWorkspacePapers
-);
-
+router.get("/", protect, getMyWorkspaces);
+router.post("/", protect, createWorkspace);
+router.get("/:workspaceId/papers", protect, getWorkspacePapers);
+router.put("/:workspaceId", protect, updateWorkspace);
+router.delete("/:workspaceId", protect, deleteWorkspace);
 
 export default router;

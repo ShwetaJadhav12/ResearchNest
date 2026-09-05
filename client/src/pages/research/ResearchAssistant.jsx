@@ -16,14 +16,47 @@ import {
   Sparkles,
   Target,
   X,
+  PenTool,
+  Database,
+  Quote,
+  Layers,
+  FolderPlus,
 } from "lucide-react";
 
 import Navbar from "../../components/layout/Navbar";
 import api from "../../api/axios";
+import toast from "react-hot-toast";
 
 const historyKey = "researchnest_ai_history";
 
 const tools = [
+  {
+    id: "paper_writer",
+    label: "Academic Paper Writer",
+    description: "Draft sections with IEEE, APA, MLA citations",
+    icon: PenTool,
+    color: "fuchsia",
+    min: 1,
+    max: 8,
+  },
+  {
+    id: "review",
+    label: "Literature Review",
+    description: "Synthesize multiple studies with citations",
+    icon: BookOpenCheck,
+    color: "emerald",
+    min: 2,
+    max: 6,
+  },
+  {
+    id: "extract",
+    label: "Component Extractor",
+    description: "Extract datasets, methods, models, timelines",
+    icon: Database,
+    color: "sky",
+    min: 1,
+    max: 6,
+  },
   {
     id: "summary",
     label: "AI Summary",
@@ -32,6 +65,15 @@ const tools = [
     color: "violet",
     min: 1,
     max: 1,
+  },
+  {
+    id: "compare",
+    label: "Compare Papers",
+    description: "Compare research evidence side-by-side",
+    icon: Scale,
+    color: "purple",
+    min: 2,
+    max: 4,
   },
   {
     id: "ask",
@@ -43,27 +85,9 @@ const tools = [
     max: 1,
   },
   {
-    id: "compare",
-    label: "Compare",
-    description: "Compare research evidence",
-    icon: Scale,
-    color: "fuchsia",
-    min: 2,
-    max: 4,
-  },
-  {
-    id: "review",
-    label: "Literature Review",
-    description: "Synthesize multiple studies",
-    icon: BookOpenCheck,
-    color: "emerald",
-    min: 2,
-    max: 6,
-  },
-  {
     id: "cross",
     label: "Cross-Paper Q&A",
-    description: "Ask across multiple papers",
+    description: "Ask questions across multiple studies",
     icon: Search,
     color: "amber",
     min: 2,
@@ -71,30 +95,26 @@ const tools = [
   },
 ];
 
-function toMarkdown(paper, summary) {
-  return `# ${paper.title || paper.filename}
+const CITATION_STYLES = ["IEEE", "APA 7", "MLA", "Chicago", "Harvard", "BibTeX"];
 
-${summary.tldr || ""}
+const SECTIONS = [
+  "Full Paper / Survey",
+  "Abstract",
+  "Introduction",
+  "Literature Review",
+  "Methodology",
+  "Results & Discussion",
+  "Conclusion",
+  "Future Work",
+];
 
-## Research problem
-${summary.researchProblem || "Not provided"}
-
-## Methodology
-${summary.methodology || "Not provided"}
-
-## Dataset / evaluation
-${summary.dataset || "Not provided"}
-
-## Key findings
-${(summary.keyFindings || []).map((item) => `- ${item}`).join("\n")}
-
-## Limitations
-${(summary.limitations || []).map((item) => `- ${item}`).join("\n")}
-
-## Conclusion
-${summary.conclusion || "Not provided"}
-`;
-}
+const COMPONENT_TYPES = [
+  { id: "datasets", label: "Datasets & Benchmarks" },
+  { id: "methodologies", label: "Core Methodologies" },
+  { id: "models", label: "Models & Architectures" },
+  { id: "timelines", label: "Research Timeline" },
+  { id: "limitations", label: "Limitations & Gaps" },
+];
 
 export default function ResearchAssistant() {
   const [papers, setPapers] = useState([]);
@@ -103,8 +123,13 @@ export default function ResearchAssistant() {
   const [workspaceId, setWorkspaceId] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
 
-  const [tool, setTool] = useState("summary");
+  const [tool, setTool] = useState("paper_writer");
 
+  // Options for tools
+  const [citationStyle, setCitationStyle] = useState("IEEE");
+  const [targetSection, setTargetSection] = useState("Literature Review");
+  const [componentType, setComponentType] = useState("datasets");
+  const [paperTopic, setPaperTopic] = useState("");
   const [question, setQuestion] = useState("");
   const [focus, setFocus] = useState("");
 
@@ -112,130 +137,68 @@ export default function ResearchAssistant() {
   const [summaryResult, setSummaryResult] = useState(null);
 
   const [history, setHistory] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
-
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
   // --------------------------------------------------
   // LOAD DATA
   // --------------------------------------------------
-
   useEffect(() => {
     try {
-      setHistory(
-        JSON.parse(
-          localStorage.getItem(historyKey) || "[]"
-        )
-      );
+      setHistory(JSON.parse(localStorage.getItem(historyKey) || "[]"));
     } catch {
       setHistory([]);
     }
 
-    Promise.all([
-      api.get("/api/papers"),
-      api.get("/api/workspaces"),
-    ])
+    Promise.all([api.get("/api/papers"), api.get("/api/workspaces")])
       .then(([papersResponse, workspaceResponse]) => {
         setPapers(papersResponse.data.papers || []);
         setWorkspaces(workspaceResponse.data.workspaces || []);
       })
       .catch((err) => {
-        setError(
-          err.response?.data?.message ||
-            "Unable to load your research library."
-        );
+        setError(err.response?.data?.message || "Unable to load research library.");
       })
       .finally(() => {
         setLoading(false);
       });
   }, []);
 
-  // --------------------------------------------------
-  // FILTER PAPERS BY WORKSPACE
-  // --------------------------------------------------
-
+  // Filter papers by workspace
   const visiblePapers = useMemo(() => {
     if (!workspaceId) return papers;
-
     return papers.filter(
-      (paper) =>
-        String(
-          paper.workspace?._id ||
-            paper.workspace ||
-            ""
-        ) === String(workspaceId)
+      (paper) => String(paper.workspace?._id || paper.workspace || "") === String(workspaceId)
     );
   }, [papers, workspaceId]);
 
-  // --------------------------------------------------
-  // SELECTED PAPERS
-  // --------------------------------------------------
-
-  const selectedPapers = useMemo(
-    () =>
-      visiblePapers.filter((paper) =>
-        selectedIds.includes(paper._id)
-      ),
-    [visiblePapers, selectedIds]
-  );
-
-  // --------------------------------------------------
-  // TOOL
-  // --------------------------------------------------
-
-  const activeTool = tools.find(
-    (item) => item.id === tool
-  );
-
-  // --------------------------------------------------
-  // WORKSPACE CHANGE
-  // --------------------------------------------------
+  const activeTool = tools.find((item) => item.id === tool);
 
   const changeWorkspace = (value) => {
     setWorkspaceId(value);
     setSelectedIds([]);
     setSummaryResult(null);
     setResult(null);
-    setQuestion("");
     setError("");
   };
-
-  // --------------------------------------------------
-  // TOOL CHANGE
-  // --------------------------------------------------
 
   const changeTool = (id) => {
     setTool(id);
     setSelectedIds([]);
     setSummaryResult(null);
     setResult(null);
-    setQuestion("");
-    setFocus("");
     setError("");
   };
-
-  // --------------------------------------------------
-  // SELECT PAPER
-  // --------------------------------------------------
 
   const togglePaper = (id) => {
     setSelectedIds((current) => {
       if (current.includes(id)) {
-        return current.filter(
-          (paperId) => paperId !== id
-        );
+        return current.filter((paperId) => paperId !== id);
       }
-
-      if (
-        activeTool?.max &&
-        current.length >= activeTool.max
-      ) {
+      if (activeTool?.max && current.length >= activeTool.max) {
         return current;
       }
-
       return [...current, id];
     });
 
@@ -244,1455 +207,764 @@ export default function ResearchAssistant() {
     setError("");
   };
 
-  // --------------------------------------------------
-  // VALIDATION
-  // --------------------------------------------------
-
   const canRun =
     selectedIds.length >= (activeTool?.min || 1) &&
-    selectedIds.length <=
-      (activeTool?.max || 999);
+    selectedIds.length <= (activeTool?.max || 999);
 
   // --------------------------------------------------
-  // SUMMARY
+  // RUN ANALYSIS / GENERATION
   // --------------------------------------------------
+  const run = async () => {
+    if (!canRun || working) return;
 
-  const generateSummary = async () => {
-    const paperId = selectedIds[0];
-
-    if (!paperId) return;
-
-    setWorking(true);
-    setError("");
-    setSummaryResult(null);
-
-    try {
-      const { data } = await api.post(
-        `/api/ai/summarize/${paperId}`
-      );
-
-      const entry = {
-        paper: data.paper,
-        summary: data.summary,
-        createdAt: new Date().toISOString(),
-      };
-
-      setSummaryResult(entry);
-
-      const next = [
-        entry,
-        ...history.filter(
-          (item) =>
-            item.paper.id !== entry.paper.id
-        ),
-      ].slice(0, 5);
-
-      setHistory(next);
-
-      localStorage.setItem(
-        historyKey,
-        JSON.stringify(next)
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Unable to generate the AI summary."
-      );
-    } finally {
-      setWorking(false);
-    }
-  };
-
-  // --------------------------------------------------
-  // ASK / COMPARE / REVIEW / CROSS PAPER
-  // --------------------------------------------------
-
-  const runResearchTool = async () => {
     setWorking(true);
     setError("");
     setResult(null);
+    setSummaryResult(null);
 
     try {
       let data;
 
-      if (tool === "ask") {
-        if (!question.trim()) {
-          throw new Error(
-            "Enter a question about the selected paper."
-          );
-        }
-
-        ({ data } = await api.post(
-          `/api/ai/ask/${selectedIds[0]}`,
-          {
-            question: question.trim(),
-          }
-        ));
+      // 1. Academic Paper / Survey Writer with Citations
+      if (tool === "paper_writer") {
+        ({ data } = await api.post("/api/ai/paper-writer", {
+          paperIds: selectedIds,
+          topic: paperTopic.trim(),
+          section: targetSection,
+          citationStyle,
+          focus: focus.trim(),
+          workspaceId: workspaceId || undefined,
+        }));
 
         setResult({
-          type: "rag",
-          value: data.result,
+          type: "academic_writing",
+          value: data.writing,
+          sourcePapers: data.sourcePapers,
+        });
+
+        toast.success(`Generated ${targetSection} with ${citationStyle} citations.`);
+      }
+
+      // 2. Component Extractor
+      else if (tool === "extract") {
+        ({ data } = await api.post("/api/ai/extract-components", {
+          paperIds: selectedIds,
+          componentType,
+        }));
+
+        setResult({
+          type: "component_extraction",
+          value: data.data,
         });
       }
 
-      if (tool === "compare") {
-        ({ data } = await api.post(
-          "/api/ai/compare",
-          {
-            paperIds: selectedIds,
-          }
-        ));
+      // 3. AI Summary
+      else if (tool === "summary") {
+        const paperId = selectedIds[0];
+        ({ data } = await api.post(`/api/ai/summarize/${paperId}`));
 
-        setResult({
-          type: "compare",
-          value: data.comparison,
-        });
+        const entry = {
+          paper: data.paper,
+          summary: data.summary,
+          createdAt: new Date().toISOString(),
+        };
+
+        setSummaryResult(entry);
+
+        const next = [
+          entry,
+          ...history.filter((item) => item.paper.id !== entry.paper.id),
+        ].slice(0, 5);
+
+        setHistory(next);
+        localStorage.setItem(historyKey, JSON.stringify(next));
       }
 
-      if (tool === "review") {
-        ({ data } = await api.post(
-          "/api/ai/literature-review",
-          {
-            paperIds: selectedIds,
-            focus: focus.trim(),
-          }
-        ));
+      // 4. Ask Single Paper
+      else if (tool === "ask") {
+        if (!question.trim()) throw new Error("Enter a question about the paper.");
+        ({ data } = await api.post(`/api/ai/ask/${selectedIds[0]}`, {
+          question: question.trim(),
+        }));
 
-        setResult({
-          type: "review",
-          value: data.review,
-        });
+        setResult({ type: "rag", value: data.result });
       }
 
-      if (tool === "cross") {
-        if (!question.trim()) {
-          throw new Error(
-            "Enter a question about the selected papers."
-          );
-        }
+      // 5. Compare Papers
+      else if (tool === "compare") {
+        ({ data } = await api.post("/api/ai/compare", {
+          paperIds: selectedIds,
+        }));
 
-        ({ data } = await api.post(
-          "/api/ai/ask-across",
-          {
-            paperIds: selectedIds,
-            question: question.trim(),
-          }
-        ));
+        setResult({ type: "compare", value: data.comparison });
+      }
 
-        setResult({
-          type: "rag",
-          value: data.result,
-        });
+      // 6. Literature Review
+      else if (tool === "review") {
+        ({ data } = await api.post("/api/ai/literature-review", {
+          paperIds: selectedIds,
+          focus: focus.trim(),
+        }));
+
+        setResult({ type: "review", value: data.review });
+      }
+
+      // 7. Cross-Paper Q&A
+      else if (tool === "cross") {
+        if (!question.trim()) throw new Error("Enter a question across the papers.");
+        ({ data } = await api.post("/api/ai/ask-across", {
+          paperIds: selectedIds,
+          question: question.trim(),
+        }));
+
+        setResult({ type: "rag", value: data.result });
       }
     } catch (err) {
       setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Unable to complete the analysis."
+        err.response?.data?.message || err.message || "Unable to complete the analysis."
       );
     } finally {
       setWorking(false);
     }
   };
-
-  const run = async () => {
-    if (!canRun || working) return;
-
-    if (tool === "summary") {
-      await generateSummary();
-    } else {
-      await runResearchTool();
-    }
-  };
-
-  // --------------------------------------------------
-  // COPY SUMMARY
-  // --------------------------------------------------
-
-  const copySummary = async () => {
-    if (!summaryResult) return;
-
-    await navigator.clipboard.writeText(
-      toMarkdown(
-        summaryResult.paper,
-        summaryResult.summary
-      )
-    );
-
-    setCopied(true);
-
-    window.setTimeout(
-      () => setCopied(false),
-      1800
-    );
-  };
-
-  // --------------------------------------------------
-  // DOWNLOAD SUMMARY
-  // --------------------------------------------------
-
-  const downloadSummary = () => {
-    if (!summaryResult) return;
-
-    const markdown = toMarkdown(
-      summaryResult.paper,
-      summaryResult.summary
-    );
-
-    const blob = new Blob([markdown], {
-      type: "text/markdown",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link =
-      document.createElement("a");
-
-    link.href = url;
-
-    link.download = `${(
-      summaryResult.paper.title ||
-      "research-summary"
-    )
-      .replace(/[^a-z0-9]+/gi, "-")
-      .toLowerCase()}.md`;
-
-    link.click();
-
-    URL.revokeObjectURL(url);
-  };
-
-  // --------------------------------------------------
-  // UI
-  // --------------------------------------------------
 
   return (
     <div className="min-h-screen bg-[#FAF7FF]">
       <Navbar />
 
       <main className="mx-auto max-w-7xl px-5 py-8 sm:px-6 lg:px-8">
-
         {/* HERO */}
-
-        <section className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-7 text-white shadow-2xl md:p-10">
-
+        <section className="relative overflow-hidden rounded-[2.5rem] bg-slate-950 p-8 text-white shadow-2xl md:p-10">
           <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-violet-600/30 blur-3xl" />
-
           <div className="absolute -bottom-32 left-1/3 h-80 w-80 rounded-full bg-fuchsia-600/20 blur-3xl" />
 
           <div className="relative z-10 max-w-3xl">
-
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-violet-200">
-              <BrainCircuit size={14} />
-
-              ResearchNest AI
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-violet-200">
+              <BrainCircuit size={14} /> AI Research Copilot & Writing Engine
             </div>
 
-            <h1 className="mt-5 text-4xl font-black tracking-tight md:text-5xl">
-              Your AI research
-              <span className="block bg-gradient-to-r from-violet-300 to-fuchsia-300 bg-clip-text text-transparent">
-                copilot.
+            <h1 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">
+              Academic writing with
+              <span className="block bg-gradient-to-r from-violet-300 via-fuchsia-300 to-purple-200 bg-clip-text text-transparent">
+                real citations.
               </span>
             </h1>
 
-            <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-              Select your workspace and research papers.
-              ResearchNest can summarize studies, answer
-              evidence-grounded questions, compare papers,
-              and help build literature reviews.
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-300 md:text-base">
+              Select papers from your workspace and let ResearchNest draft publication-ready sections,
+              generate literature reviews with IEEE, APA 7, or BibTeX references, extract empirical datasets, and synthesize findings.
             </p>
-
-          </div>
-
-          <div className="relative z-10 mt-8 grid max-w-3xl gap-3 sm:grid-cols-3">
-
-            <HeroStat
-              icon={<FileText size={18} />}
-              title="Your papers"
-              value={papers.length}
-            />
-
-            <HeroStat
-              icon={<BookOpen size={18} />}
-              title="Workspaces"
-              value={workspaces.length}
-            />
-
-            <HeroStat
-              icon={<Sparkles size={18} />}
-              title="AI tools"
-              value="5"
-            />
-
           </div>
         </section>
 
-        {/* MAIN WORKSPACE */}
-
-        <section className="mt-8 grid gap-7 lg:grid-cols-[1fr_20rem]">
-
+        {/* WORKSPACE & TOOL SELECTION */}
+        <section className="mt-8 grid gap-7 lg:grid-cols-[1fr_22rem]">
           <div className="min-w-0">
-
-            {/* CONTROL PANEL */}
-
-            <section className="rounded-3xl border border-violet-100 bg-white p-5 shadow-sm md:p-7">
-
+            {/* STEP 1: SELECT WORKSPACE & PAPERS */}
+            <section className="rounded-3xl border border-violet-100 bg-white p-6 shadow-sm md:p-8">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-
                 <div>
-
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
-                    Step 1
+                  <p className="text-xs font-bold uppercase tracking-wider text-violet-600">
+                    Step 1 • Research Context
                   </p>
-
                   <h2 className="mt-1 text-2xl font-bold text-slate-900">
-                    Choose your research space
+                    Select Research Workspace & Papers
                   </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Work with papers already organized in
-                    your ResearchNest workspace.
-                  </p>
-
                 </div>
 
-                <div className="rounded-2xl bg-violet-50 px-4 py-3 text-right">
-                  <p className="text-xs text-violet-500">
-                    Selected
-                  </p>
-
-                  <p className="text-xl font-black text-violet-700">
-                    {selectedIds.length}
-                  </p>
+                <div className="rounded-2xl bg-violet-50 px-4 py-2.5 text-right">
+                  <p className="text-xs text-violet-600 font-medium">Selected</p>
+                  <p className="text-xl font-black text-violet-800">{selectedIds.length}</p>
                 </div>
-
               </div>
 
-              {/* WORKSPACE SELECT */}
-
+              {/* Workspace Selector */}
               <div className="mt-6">
-
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Workspace
+                <label className="mb-2 block text-xs font-bold text-slate-700">
+                  Target Workspace
                 </label>
-
                 <select
                   value={workspaceId}
-                  onChange={(e) =>
-                    changeWorkspace(
-                      e.target.value
-                    )
-                  }
-                  disabled={loading}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm font-medium text-slate-800 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
+                  onChange={(e) => changeWorkspace(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
                 >
-                  <option value="">
-                    All workspaces
-                  </option>
-
-                  {workspaces.map(
-                    (workspace) => (
-                      <option
-                        key={workspace._id}
-                        value={workspace._id}
-                      >
-                        {workspace.name}
-                      </option>
-                    )
-                  )}
+                  <option value="">All Workspaces ({papers.length} total papers)</option>
+                  {workspaces.map((ws) => (
+                    <option key={ws._id} value={ws._id}>
+                      {ws.name} ({ws.topic || "Research"})
+                    </option>
+                  ))}
                 </select>
-
               </div>
 
-              {/* PAPERS */}
-
+              {/* Papers Grid */}
               <div className="mt-6">
-
-                <div className="flex items-center justify-between">
-
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Your research papers
-                    </p>
-
-                    <p className="text-xs text-slate-400">
-                      {visiblePapers.length} papers available
-                    </p>
-                  </div>
-
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Papers Available ({visiblePapers.length})
+                  </p>
                   {selectedIds.length > 0 && (
                     <button
-                      onClick={() =>
-                        setSelectedIds([])
-                      }
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-violet-600"
+                      onClick={() => setSelectedIds([])}
+                      className="text-xs font-semibold text-slate-400 hover:text-violet-600"
                     >
-                      <X size={13} />
-
-                      Clear selection
+                      Clear Selection
                     </button>
                   )}
-
                 </div>
 
-                {loading ? (
-                  <div className="mt-4 flex items-center gap-2 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
-                    <LoaderCircle
-                      size={17}
-                      className="animate-spin"
-                    />
-
-                    Loading your papers...
-                  </div>
-                ) : !visiblePapers.length ? (
-                  <div className="mt-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-8 text-center">
-
-                    <FileText
-                      size={30}
-                      className="mx-auto text-violet-300"
-                    />
-
-                    <p className="mt-3 font-semibold text-slate-700">
-                      No papers in this workspace
+                {!visiblePapers.length ? (
+                  <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/30 p-8 text-center">
+                    <FileText size={28} className="mx-auto text-violet-300" />
+                    <p className="mt-2 text-sm font-bold text-slate-700">No papers in this workspace</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Upload PDFs or add papers from Discovery to analyze.
                     </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      Upload research papers first to use
-                      the AI Research Assistant.
-                    </p>
-
                   </div>
                 ) : (
-                  <div className="mt-4 grid gap-3">
-
-                    {visiblePapers.map(
-                      (paper) => {
-
-                        const selected =
-                          selectedIds.includes(
-                            paper._id
-                          );
-
-                        const disabled =
-                          !selected &&
-                          selectedIds.length >=
-                            (activeTool?.max ||
-                              999);
-
-                        return (
-                          <button
-                            key={paper._id}
-                            type="button"
-                            disabled={disabled}
-                            onClick={() =>
-                              togglePaper(
-                                paper._id
-                              )
-                            }
-                            className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                              selected
-                                ? "border-violet-400 bg-violet-50 shadow-sm"
-                                : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40"
-                            } ${
-                              disabled
-                                ? "cursor-not-allowed opacity-40"
-                                : ""
+                  <div className="grid gap-2.5 max-h-72 overflow-y-auto pr-1">
+                    {visiblePapers.map((paper) => {
+                      const isSelected = selectedIds.includes(paper._id);
+                      return (
+                        <button
+                          key={paper._id}
+                          type="button"
+                          onClick={() => togglePaper(paper._id)}
+                          className={`flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition ${
+                            isSelected
+                              ? "border-violet-400 bg-violet-50 shadow-sm"
+                              : "border-slate-200 bg-white hover:border-violet-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
+                              isSelected ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400"
                             }`}
                           >
+                            {isSelected ? <Check size={16} /> : <FileText size={16} />}
+                          </div>
 
-                            <div
-                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                                selected
-                                  ? "bg-violet-600 text-white"
-                                  : "bg-slate-100 text-slate-500"
-                              }`}
-                            >
-                              {selected ? (
-                                <Check
-                                  size={19}
-                                />
-                              ) : (
-                                <FileText
-                                  size={19}
-                                />
-                              )}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-
-                              <p className="truncate text-sm font-bold text-slate-800">
-                                {paper.title ||
-                                  paper.filename}
-                              </p>
-
-                              <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-400">
-
-                                <span>
-                                  {paper.topic ||
-                                    "Research"}
-                                </span>
-
-                                {paper.authors
-                                  ?.length ? (
-                                  <>
-                                    <span>
-                                      •
-                                    </span>
-
-                                    <span className="truncate">
-                                      {paper.authors.join(
-                                        ", "
-                                      )}
-                                    </span>
-                                  </>
-                                ) : null}
-
-                              </div>
-
-                            </div>
-
-                            <ChevronRight
-                              size={17}
-                              className={
-                                selected
-                                  ? "text-violet-500"
-                                  : "text-slate-300"
-                              }
-                            />
-
-                          </button>
-                        );
-                      }
-                    )}
-
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-bold text-slate-900">
+                              {paper.title || paper.filename}
+                            </p>
+                            <p className="truncate text-[11px] text-slate-500 mt-0.5">
+                              {paper.authors?.join(", ") || "Unknown authors"}
+                              {paper.year ? ` • ${paper.year}` : ""}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
-
               </div>
-
             </section>
 
-            {/* AI TOOLS */}
+            {/* STEP 2: TOOL & CITATION SETTINGS */}
+            <section className="mt-7 rounded-3xl border border-violet-100 bg-white p-6 shadow-sm md:p-8">
+              <p className="text-xs font-bold uppercase tracking-wider text-violet-600">
+                Step 2 • Select Research Tool
+              </p>
+              <h2 className="mt-1 text-2xl font-bold text-slate-900">Configure AI Research Engine</h2>
 
-            <section className="mt-7 rounded-3xl border border-violet-100 bg-white p-5 shadow-sm md:p-7">
-
-              <div>
-
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
-                  Step 2
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold text-slate-900">
-                  Choose an AI tool
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Different research tasks require different
-                  kinds of analysis.
-                </p>
-
-              </div>
-
+              {/* Tool Cards */}
               <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
                 {tools.map((item) => {
-
                   const Icon = item.icon;
-                  const active =
-                    item.id === tool;
-
+                  const active = item.id === tool;
                   return (
                     <button
                       key={item.id}
-                      onClick={() =>
-                        changeTool(
-                          item.id
-                        )
-                      }
+                      onClick={() => changeTool(item.id)}
                       className={`rounded-2xl border p-4 text-left transition ${
                         active
-                          ? "border-violet-400 bg-violet-50 shadow-sm"
+                          ? "border-violet-500 bg-violet-50/80 shadow-sm"
                           : "border-slate-200 bg-white hover:border-violet-200 hover:bg-slate-50"
                       }`}
                     >
-
                       <div
                         className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                          active
-                            ? "bg-violet-600 text-white"
-                            : "bg-slate-100 text-slate-500"
+                          active ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-500"
                         }`}
                       >
                         <Icon size={19} />
                       </div>
-
-                      <p className="mt-3 text-sm font-bold text-slate-800">
-                        {item.label}
+                      <p className="mt-3 text-sm font-bold text-slate-900">{item.label}</p>
+                      <p className="mt-1 text-xs text-slate-500 leading-relaxed">{item.description}</p>
+                      <p className="mt-2 text-[11px] font-bold text-violet-600">
+                        {item.min === item.max ? `${item.min} paper` : `${item.min}–${item.max} papers`}
                       </p>
-
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {item.description}
-                      </p>
-
-                      <p className="mt-2 text-[11px] font-semibold text-violet-500">
-                        {item.min === 1 &&
-                        item.max === 1
-                          ? "1 paper"
-                          : `${item.min}–${item.max} papers`}
-                      </p>
-
                     </button>
                   );
                 })}
-
               </div>
 
-              {/* QUESTIONS */}
+              {/* TOOL SPECIFIC CONFIGURATIONS */}
+              <div className="mt-6 border-t border-slate-100 pt-6">
+                {/* Academic Paper Writer Options */}
+                {tool === "paper_writer" && (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {/* Section Selector */}
+                      <div>
+                        <label className="mb-2 block text-xs font-bold text-slate-700">
+                          Target Academic Section
+                        </label>
+                        <select
+                          value={targetSection}
+                          onChange={(e) => setTargetSection(e.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:border-violet-500"
+                        >
+                          {SECTIONS.map((sec) => (
+                            <option key={sec} value={sec}>
+                              {sec}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-              {(tool === "ask" ||
-                tool === "cross") && (
-                <div className="mt-6">
+                      {/* Citation Style Selector */}
+                      <div>
+                        <label className="mb-2 block text-xs font-bold text-slate-700">
+                          Citation Style
+                        </label>
+                        <select
+                          value={citationStyle}
+                          onChange={(e) => setCitationStyle(e.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800 outline-none focus:border-violet-500"
+                        >
+                          {CITATION_STYLES.map((style) => (
+                            <option key={style} value={style}>
+                              {style} (In-text + References)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    {tool === "ask"
-                      ? "Ask about this paper"
-                      : "Ask across these papers"}
-                  </label>
+                    <div>
+                      <label className="mb-2 block text-xs font-bold text-slate-700">
+                        Paper Title / Specific Topic
+                      </label>
+                      <input
+                        value={paperTopic}
+                        onChange={(e) => setPaperTopic(e.target.value)}
+                        placeholder="e.g. Graph Neural Networks for Molecular Property Prediction"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-violet-500"
+                      />
+                    </div>
+                  </div>
+                )}
 
-                  <textarea
-                    value={question}
-                    onChange={(e) =>
-                      setQuestion(
-                        e.target.value
-                      )
-                    }
-                    rows={4}
-                    placeholder={
-                      tool === "ask"
-                        ? "e.g. What methodology did the authors use?"
-                        : "e.g. What are the common limitations across these studies?"
-                    }
-                    className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3.5 text-sm text-slate-700 outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
-                  />
+                {/* Component Extractor Options */}
+                {tool === "extract" && (
+                  <div>
+                    <label className="mb-2 block text-xs font-bold text-slate-700">
+                      Component to Extract Across Studies
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {COMPONENT_TYPES.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setComponentType(c.id)}
+                          className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
+                            componentType === c.id
+                              ? "bg-violet-600 text-white shadow-sm"
+                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                </div>
-              )}
+                {/* Question Inputs for Ask / Cross tools */}
+                {(tool === "ask" || tool === "cross") && (
+                  <div>
+                    <label className="mb-2 block text-xs font-bold text-slate-700">
+                      {tool === "ask" ? "Question about the paper" : "Question across selected studies"}
+                    </label>
+                    <textarea
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      rows={3}
+                      placeholder={
+                        tool === "ask"
+                          ? "e.g. What were the primary baseline models evaluated against?"
+                          : "e.g. What common methodological weaknesses exist across these studies?"
+                      }
+                      className="w-full resize-none rounded-2xl border border-slate-200 p-3.5 text-xs text-slate-800 outline-none focus:border-violet-500"
+                    />
+                  </div>
+                )}
 
-              {/* REVIEW FOCUS */}
+                {/* Focus input for review tool */}
+                {tool === "review" && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-2 block text-xs font-bold text-slate-700">
+                        Literature Review Focus (Optional)
+                      </label>
+                      <input
+                        value={focus}
+                        onChange={(e) => setFocus(e.target.value)}
+                        placeholder="e.g. Benchmarks and scaling constraints in vision transformers"
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs outline-none focus:border-violet-500"
+                      />
+                    </div>
 
-              {tool === "review" && (
-                <div className="mt-6">
+                    <div>
+                      <label className="mb-2 block text-xs font-bold text-slate-700">
+                        Citation Format
+                      </label>
+                      <select
+                        value={citationStyle}
+                        onChange={(e) => setCitationStyle(e.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-violet-500"
+                      >
+                        {CITATION_STYLES.map((style) => (
+                          <option key={style} value={style}>
+                            {style}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Literature review focus
-                    <span className="ml-2 font-normal text-slate-400">
-                      Optional
-                    </span>
-                  </label>
-
-                  <input
-                    value={focus}
-                    onChange={(e) =>
-                      setFocus(
-                        e.target.value
-                      )
-                    }
-                    placeholder="e.g. AI methods for medical image diagnosis"
-                    className="w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"
-                  />
-
-                </div>
-              )}
-
-              {/* ACTION */}
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
-                <div className="text-sm text-slate-500">
-
-                  {!selectedIds.length ? (
-                    <span>
-                      Select a paper to begin.
-                    </span>
-                  ) : selectedIds.length <
-                    (activeTool?.min || 1) ? (
-                    <span>
-                      Select at least{" "}
-                      {activeTool.min}{" "}
-                      papers.
-                    </span>
-                  ) : (
-                    <span className="font-medium text-emerald-600">
-                      Ready to analyze{" "}
-                      {selectedIds.length}{" "}
-                      {selectedIds.length ===
-                      1
-                        ? "paper"
-                        : "papers"}
-                      .
-                    </span>
-                  )}
-
-                </div>
+              {/* Action Trigger Button */}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500 font-medium">
+                  {!selectedIds.length
+                    ? "Select paper(s) above to run AI analysis."
+                    : selectedIds.length < (activeTool?.min || 1)
+                    ? `Select at least ${activeTool.min} paper(s).`
+                    : `Ready to analyze ${selectedIds.length} paper(s).`}
+                </p>
 
                 <button
                   onClick={run}
-                  disabled={
-                    !canRun ||
-                    working ||
-                    (tool !== "summary" &&
-                      (tool === "ask" ||
-                        tool === "cross") &&
-                      !question.trim())
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!canRun || working}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-violet-200 transition hover:scale-105 disabled:opacity-40"
                 >
-
                   {working ? (
-                    <LoaderCircle
-                      size={18}
-                      className="animate-spin"
-                    />
+                    <LoaderCircle size={18} className="animate-spin" />
                   ) : (
                     <Sparkles size={18} />
                   )}
-
-                  {working
-                    ? "ResearchNest AI is thinking..."
-                    : tool === "summary"
-                    ? "Generate AI Summary"
-                    : tool === "ask"
-                    ? "Ask AI"
-                    : tool === "compare"
-                    ? "Compare Papers"
-                    : tool === "review"
-                    ? "Generate Literature Review"
-                    : "Ask Across Papers"}
-
+                  <span>
+                    {working
+                      ? "Generating..."
+                      : tool === "paper_writer"
+                      ? `Draft ${targetSection}`
+                      : tool === "extract"
+                      ? `Extract ${componentType}`
+                      : tool === "summary"
+                      ? "Generate Summary"
+                      : tool === "review"
+                      ? "Generate Review"
+                      : "Run Analysis"}
+                  </span>
                 </button>
-
               </div>
 
               {error && (
-                <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+                <div className="mt-4 rounded-2xl bg-rose-50 p-4 text-xs font-medium text-rose-700 border border-rose-100">
                   {error}
                 </div>
               )}
-
             </section>
 
-            {/* SUMMARY */}
+            {/* ---------------------------------------------------- */}
+            {/* OUTPUT RESULT SECTION */}
+            {/* ---------------------------------------------------- */}
 
+            {/* ACADEMIC PAPER WRITER OUTPUT */}
+            {result?.type === "academic_writing" && (
+              <section className="mt-8 rounded-3xl border border-violet-100 bg-white p-7 shadow-sm md:p-9">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-slate-100 pb-5">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-violet-700">
+                        {result.value.section}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                        {result.value.citationStyle} Citations
+                      </span>
+                    </div>
+                    <h2 className="mt-3 text-2xl font-black text-slate-900">
+                      {result.value.title}
+                    </h2>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `${result.value.content}\n\nReferences:\n${(result.value.references || [])
+                            .map((r, i) => `[${i + 1}] ${r.text}`)
+                            .join("\n")}`
+                        );
+                        toast.success("Copied paper text with citations!");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Clipboard size={14} /> Copy
+                    </button>
+
+                    {result.value.bibtex && (
+                      <button
+                        onClick={() => {
+                          const blob = new Blob([result.value.bibtex], { type: "text/plain" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "citations.bib";
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          toast.success("Exported BibTeX!");
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                      >
+                        <Quote size={14} /> BibTeX
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Generated Academic Content */}
+                <div className="mt-6 space-y-4 font-serif text-slate-800 leading-relaxed text-sm whitespace-pre-line">
+                  {result.value.content}
+                </div>
+
+                {/* References List */}
+                {result.value.references?.length > 0 && (
+                  <div className="mt-8 border-t border-slate-200 pt-6">
+                    <h3 className="text-base font-bold text-slate-900 font-sans mb-3">
+                      References ({result.value.citationStyle})
+                    </h3>
+                    <div className="space-y-2 text-xs text-slate-600 font-sans">
+                      {result.value.references.map((ref, idx) => (
+                        <p key={idx} className="pl-4 -indent-4">
+                          <span className="font-bold text-violet-700 mr-2">
+                            [{ref.index || idx + 1}]
+                          </span>
+                          {ref.text}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* COMPONENT EXTRACTION OUTPUT */}
+            {result?.type === "component_extraction" && (
+              <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <Database size={20} className="text-violet-600" />
+                  <h3 className="text-lg font-bold text-slate-900 capitalize">
+                    Extracted {result.value.component}
+                  </h3>
+                </div>
+
+                {result.value.synthesis && (
+                  <div className="mb-6 rounded-2xl bg-violet-50 p-4 text-xs leading-relaxed text-violet-900">
+                    <span className="font-bold block mb-1">Cross-Study Synthesis:</span>
+                    {result.value.synthesis}
+                  </div>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(result.value.items || []).map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs"
+                    >
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        {item.name || item.milestone || item.finding || item.limitation}
+                      </h4>
+                      {item.paperTitle && (
+                        <p className="text-[11px] text-violet-600 font-semibold mt-0.5">
+                          Source: {item.paperTitle}
+                        </p>
+                      )}
+                      <p className="mt-2 text-slate-600 leading-relaxed">
+                        {item.description || item.evidence || item.implication || item.novelty}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* SUMMARY OUTPUT */}
             {summaryResult && (
-              <ResearchBrief
-                result={summaryResult}
-                copied={copied}
-                onCopy={copySummary}
-                onDownload={downloadSummary}
-              />
+              <section className="mt-8 rounded-3xl border border-violet-100 bg-white p-7 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                  <h3 className="text-xl font-bold text-slate-900">
+                    AI Summary: {summaryResult.paper.title}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(summaryResult.summary, null, 2));
+                      toast.success("Copied summary!");
+                    }}
+                    className="text-xs font-semibold text-violet-600 hover:underline"
+                  >
+                    Copy JSON
+                  </button>
+                </div>
+
+                <p className="rounded-2xl bg-violet-50 p-4 text-xs font-medium text-slate-800 leading-relaxed mb-4">
+                  <strong>TL;DR: </strong> {summaryResult.summary.tldr}
+                </p>
+
+                <div className="grid gap-3 sm:grid-cols-3 text-xs">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="font-bold text-slate-800">Methodology</p>
+                    <p className="mt-1 text-slate-600">{summaryResult.summary.methodology}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="font-bold text-slate-800">Dataset / Evaluation</p>
+                    <p className="mt-1 text-slate-600">{summaryResult.summary.dataset}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="font-bold text-slate-800">Conclusion</p>
+                    <p className="mt-1 text-slate-600">{summaryResult.summary.conclusion}</p>
+                  </div>
+                </div>
+              </section>
             )}
 
-            {/* OTHER RESULTS */}
+            {/* RAG / Q&A OUTPUT */}
+            {result?.type === "rag" && (
+              <section className="mt-8 rounded-3xl border border-violet-100 bg-white p-7 shadow-sm">
+                <h3 className="text-base font-bold text-slate-900 mb-2">Grounded AI Answer</h3>
+                <div className="rounded-2xl bg-violet-50 p-5 text-sm text-slate-800 leading-relaxed">
+                  {result.value.answer}
+                </div>
 
-            {result && (
-              <ResearchOutput output={result} />
+                {result.value.sources?.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-bold text-slate-500 uppercase">Supporting Evidence</p>
+                    {result.value.sources.map((s, idx) => (
+                      <div key={idx} className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
+                        <p className="font-semibold text-violet-700">{s.title || `Passage ${s.passage}`}</p>
+                        <p className="mt-1">{s.excerpt}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             )}
 
+            {/* LITERATURE REVIEW OUTPUT */}
+            {result?.type === "review" && (
+              <section className="mt-8 rounded-3xl border border-emerald-100 bg-white p-7 shadow-sm">
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Synthesized Literature Review</h3>
+                <p className="text-xs leading-relaxed text-slate-700 bg-slate-50 p-4 rounded-2xl mb-4">
+                  {result.value.introduction}
+                </p>
+
+                <div className="grid gap-3 sm:grid-cols-2 text-xs">
+                  <div className="rounded-2xl border border-slate-100 p-4">
+                    <h4 className="font-bold text-slate-800 mb-2">Methodological Trends</h4>
+                    <ul className="space-y-1 text-slate-600">
+                      {(result.value.methodologicalTrends || []).map((m, i) => (
+                        <li key={i}>• {m}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 p-4">
+                    <h4 className="font-bold text-slate-800 mb-2">Identified Research Gaps</h4>
+                    <ul className="space-y-1 text-slate-600">
+                      {(result.value.researchGaps || []).map((g, i) => (
+                        <li key={i}>• {g}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* PAPER COMPARISON OUTPUT */}
+            {result?.type === "compare" && (
+              <section className="mt-8 rounded-3xl border border-purple-100 bg-white p-7 shadow-sm">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Comparative Synthesis</h3>
+                <p className="text-xs text-slate-700 bg-purple-50 p-4 rounded-2xl mb-4">
+                  {result.value.summary}
+                </p>
+
+                <div className="space-y-3">
+                  {(result.value.dimensions || []).map((dim, idx) => (
+                    <div key={idx} className="rounded-2xl border border-slate-100 p-4 text-xs">
+                      <p className="font-bold text-violet-700 mb-2">{dim.name}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {(dim.values || []).map((v, vIdx) => (
+                          <div key={vIdx} className="bg-slate-50 p-2.5 rounded-xl">
+                            <span className="font-semibold text-slate-700">{v.paper}: </span>
+                            <span className="text-slate-600">{v.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
 
-          {/* SIDEBAR */}
+          {/* ---------------------------------------------------- */}
+          {/* SIDEBAR: RECENT SUMMARIES & INFO */}
+          {/* ---------------------------------------------------- */}
+          <aside className="space-y-6">
+            <div className="rounded-3xl border border-violet-100 bg-white p-6 shadow-sm">
+              <h3 className="font-bold text-sm text-slate-900">Citation Engine</h3>
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                ResearchNest automatically generates in-text citations ([1][2] for IEEE or (Author, Year) for APA) and
+                produces reference lists grounded solely in the selected papers.
+              </p>
 
-          <aside className="h-fit rounded-3xl border border-violet-100 bg-white p-5 shadow-sm lg:sticky lg:top-6">
-
-            <div className="flex items-center gap-3">
-
-              <div className="rounded-xl bg-violet-100 p-2.5 text-violet-700">
-                <BrainCircuit size={20} />
+              <div className="mt-4 rounded-2xl bg-violet-50 p-3 text-xs font-mono text-violet-800">
+                Deep learning has significantly improved medical imaging [1][2].
               </div>
-
-              <div>
-                <h2 className="font-bold text-slate-900">
-                  AI Assistant
-                </h2>
-
-                <p className="text-xs text-slate-500">
-                  Research tools
-                </p>
-              </div>
-
             </div>
 
-            <div className="mt-5 space-y-2">
-
-              {tools.map((item) => {
-
-                const Icon = item.icon;
-
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() =>
-                      changeTool(
-                        item.id
-                      )
-                    }
-                    className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition ${
-                      tool === item.id
-                        ? "bg-violet-50 text-violet-700"
-                        : "text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-
-                    <Icon size={17} />
-
-                    <span className="text-sm font-semibold">
-                      {item.label}
-                    </span>
-
-                  </button>
-                );
-              })}
-
-            </div>
-
-            <div className="mt-6 border-t border-slate-100 pt-5">
-
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Current selection
-              </p>
-
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {selectedIds.length}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                research paper
-                {selectedIds.length === 1
-                  ? ""
-                  : "s"} selected
-              </p>
-
-            </div>
-
-            {/* RECENT */}
-
-            <div className="mt-6 border-t border-slate-100 pt-5">
-
-              <p className="text-sm font-bold text-slate-800">
-                Recent summaries
-              </p>
-
-              {history.length ? (
-                <div className="mt-3 space-y-2">
-
-                  {history.map(
-                    (entry) => (
-                      <button
-                        key={`${entry.paper.id}-${entry.createdAt}`}
-                        onClick={() => {
-                          setSummaryResult(
-                            entry
-                          );
-                          setTool(
-                            "summary"
-                          );
-                          setSelectedIds([
-                            entry.paper.id,
-                          ]);
-                        }}
-                        className="w-full rounded-xl border border-slate-100 p-3 text-left transition hover:border-violet-200 hover:bg-violet-50"
-                      >
-
-                        <p className="line-clamp-2 text-xs font-semibold text-slate-700">
-                          {entry.paper.title}
-                        </p>
-
-                        <p className="mt-1 text-[11px] text-slate-400">
-                          Open summary{" "}
-                          <ChevronRight
-                            size={12}
-                            className="inline"
-                          />
-                        </p>
-
-                      </button>
-                    )
-                  )}
-
-                </div>
+            {/* Recent History */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400 mb-3">
+                Recent Summaries
+              </h4>
+              {!history.length ? (
+                <p className="text-xs text-slate-400">Your generated summaries will appear here.</p>
               ) : (
-                <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
-                  Your generated summaries will
-                  appear here.
-                </p>
+                <div className="space-y-2">
+                  {history.map((entry, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSummaryResult(entry);
+                        setTool("summary");
+                        setSelectedIds([entry.paper.id]);
+                      }}
+                      className="w-full text-left rounded-xl border border-slate-100 p-2.5 text-xs text-slate-700 hover:bg-violet-50 hover:border-violet-200 transition"
+                    >
+                      <p className="font-semibold truncate">{entry.paper.title}</p>
+                      <span className="text-[10px] text-slate-400">Open summary</span>
+                    </button>
+                  ))}
+                </div>
               )}
-
             </div>
-
           </aside>
-
         </section>
-
       </main>
     </div>
-  );
-}
-
-/* =====================================================
-   HERO STAT
-===================================================== */
-
-function HeroStat({
-  icon,
-  title,
-  value,
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur">
-
-      <div className="rounded-xl bg-white/10 p-2.5">
-        {icon}
-      </div>
-
-      <div>
-        <p className="text-lg font-bold">
-          {value}
-        </p>
-
-        <p className="text-xs text-slate-300">
-          {title}
-        </p>
-      </div>
-
-    </div>
-  );
-}
-
-/* =====================================================
-   RESEARCH BRIEF
-===================================================== */
-
-function ResearchBrief({
-  result,
-  copied,
-  onCopy,
-  onDownload,
-}) {
-  const {
-    paper,
-    summary,
-  } = result;
-
-  return (
-    <section className="mt-7 rounded-3xl border border-violet-100 bg-white p-5 shadow-sm md:p-7">
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-
-        <div className="min-w-0">
-
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-600">
-            AI research brief
-          </p>
-
-          <h2 className="mt-2 text-2xl font-black text-slate-900">
-            {paper.title}
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            {paper.authors?.join(", ") ||
-              "Author metadata unavailable"}
-          </p>
-
-        </div>
-
-        <div className="flex shrink-0 gap-2">
-
-          <button
-            onClick={onCopy}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            {copied ? (
-              <Check
-                size={16}
-                className="text-emerald-600"
-              />
-            ) : (
-              <Clipboard size={16} />
-            )}
-
-            {copied
-              ? "Copied"
-              : "Copy"}
-          </button>
-
-          <button
-            onClick={onDownload}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-          >
-            <Download size={16} />
-
-            Export
-          </button>
-
-        </div>
-
-      </div>
-
-      {/* TLDR */}
-
-      <div className="mt-6 rounded-2xl border border-violet-100 bg-violet-50 p-5">
-
-        <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600">
-          TL;DR
-        </p>
-
-        <p className="mt-2 text-sm leading-7 text-slate-700">
-          {summary.tldr ||
-            "No overview was generated."}
-        </p>
-
-      </div>
-
-      {/* MAIN INSIGHTS */}
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-
-        <InsightCard
-          icon={<Target size={18} />}
-          title="Research problem"
-          value={
-            summary.researchProblem
-          }
-        />
-
-        <InsightCard
-          icon={
-            <BookOpenCheck
-              size={18}
-            />
-          }
-          title="Methodology"
-          value={
-            summary.methodology
-          }
-        />
-
-        <InsightCard
-          icon={<FileText size={18} />}
-          title="Dataset / evaluation"
-          value={summary.dataset}
-        />
-
-      </div>
-
-      {/* FINDINGS */}
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-
-        <InsightList
-          title="Key findings"
-          items={
-            summary.keyFindings
-          }
-        />
-
-        <InsightList
-          title="Limitations"
-          items={
-            summary.limitations
-          }
-        />
-
-      </div>
-
-      {/* CONCLUSION */}
-
-      <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-5">
-
-        <div className="flex items-center gap-2">
-
-          <Lightbulb
-            size={18}
-            className="text-violet-600"
-          />
-
-          <h3 className="font-bold text-slate-800">
-            Conclusion
-          </h3>
-
-        </div>
-
-        <p className="mt-3 text-sm leading-7 text-slate-600">
-          {summary.conclusion ||
-            "Not identified in the source paper."}
-        </p>
-
-      </div>
-
-    </section>
-  );
-}
-
-/* =====================================================
-   INSIGHT CARD
-===================================================== */
-
-function InsightCard({
-  icon,
-  title,
-  value,
-}) {
-  return (
-    <article className="rounded-2xl bg-slate-50 p-5">
-
-      <div className="text-violet-600">
-        {icon}
-      </div>
-
-      <h3 className="mt-3 font-bold text-slate-800">
-        {title}
-      </h3>
-
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        {value ||
-          "Not identified in the source paper."}
-      </p>
-
-    </article>
-  );
-}
-
-/* =====================================================
-   INSIGHT LIST
-===================================================== */
-
-function InsightList({
-  title,
-  items,
-}) {
-  return (
-    <article className="rounded-2xl border border-slate-100 p-5">
-
-      <h3 className="font-bold text-slate-800">
-        {title}
-      </h3>
-
-      {items?.length ? (
-        <ul className="mt-3 space-y-3">
-
-          {items.map(
-            (item, index) => (
-              <li
-                key={`${title}-${index}`}
-                className="flex gap-3 text-sm leading-6 text-slate-600"
-              >
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
-
-                {item}
-              </li>
-            )
-          )}
-
-        </ul>
-      ) : (
-        <p className="mt-3 text-sm text-slate-500">
-          Not identified in the source paper.
-        </p>
-      )}
-
-    </article>
-  );
-}
-
-/* =====================================================
-   RESEARCH OUTPUT
-===================================================== */
-
-function ResearchOutput({
-  output,
-}) {
-  const value = output.value;
-
-  if (output.type === "rag") {
-    return (
-      <section className="mt-7 rounded-3xl border border-violet-100 bg-white p-5 shadow-sm md:p-7">
-
-        <div className="flex items-center gap-3">
-
-          <div className="rounded-xl bg-violet-100 p-2.5 text-violet-700">
-            <MessageSquare
-              size={19}
-            />
-          </div>
-
-          <div>
-
-            <p className="text-xs font-bold uppercase tracking-wider text-violet-600">
-              Grounded answer
-            </p>
-
-            <p className="text-sm text-slate-500">
-              {value.confidence ||
-                "medium"}{" "}
-              confidence
-            </p>
-
-          </div>
-
-        </div>
-
-        <div className="mt-5 rounded-2xl bg-violet-50 p-5">
-
-          <p className="text-sm leading-7 text-slate-700">
-            {value.answer}
-          </p>
-
-        </div>
-
-        {value.sources?.length ? (
-          <div className="mt-5">
-
-            <p className="text-sm font-bold text-slate-800">
-              Evidence used
-            </p>
-
-            <div className="mt-3 space-y-3">
-
-              {value.sources.map(
-                (
-                  source,
-                  index
-                ) => (
-                  <div
-                    key={`${source.title || "paper"}-${source.passage}-${index}`}
-                    className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
-                  >
-
-                    <p className="text-xs font-bold text-violet-600">
-                      {source.title
-                        ? `${source.title} · `
-                        : ""}
-                      Passage{" "}
-                      {source.passage}
-                    </p>
-
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      {source.excerpt}
-                    </p>
-
-                  </div>
-                )
-              )}
-
-            </div>
-
-          </div>
-        ) : null}
-
-      </section>
-    );
-  }
-
-  if (output.type === "review") {
-    const sections = [
-      [
-        "Existing approaches",
-        value.existingApproaches,
-      ],
-      [
-        "Methodological trends",
-        value.methodologicalTrends,
-      ],
-      [
-        "Key findings",
-        value.keyFindings,
-      ],
-      [
-        "Research gaps",
-        value.researchGaps,
-      ],
-      [
-        "Future directions",
-        value.futureDirections,
-      ],
-      [
-        "Commonly studied",
-        value.commonlyStudied,
-      ],
-      [
-        "Underexplored areas",
-        value.underexplored,
-      ],
-    ];
-
-    return (
-      <section className="mt-7 rounded-3xl border border-violet-100 bg-white p-5 shadow-sm md:p-7">
-
-        <div className="flex items-center gap-3">
-
-          <div className="rounded-xl bg-emerald-100 p-2.5 text-emerald-700">
-            <BookOpenCheck
-              size={20}
-            />
-          </div>
-
-          <div>
-
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">
-              AI synthesis
-            </p>
-
-            <h2 className="text-xl font-black text-slate-900">
-              Literature Review
-            </h2>
-
-          </div>
-
-        </div>
-
-        <div className="mt-6 rounded-2xl bg-slate-50 p-5">
-
-          <p className="text-sm leading-7 text-slate-700">
-            {value.introduction}
-          </p>
-
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-
-          {sections.map(
-            ([title, items]) => (
-              <div
-                key={title}
-                className="rounded-2xl border border-slate-100 p-5"
-              >
-
-                <h3 className="font-bold text-slate-800">
-                  {title}
-                </h3>
-
-                {items?.length ? (
-                  <ul className="mt-3 space-y-2">
-
-                    {items.map(
-                      (
-                        item,
-                        index
-                      ) => (
-                        <li
-                          key={index}
-                          className="text-sm leading-6 text-slate-600"
-                        >
-                          • {item}
-                        </li>
-                      )
-                    )}
-
-                  </ul>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-400">
-                    No evidence provided.
-                  </p>
-                )}
-
-              </div>
-            )
-          )}
-
-        </div>
-
-      </section>
-    );
-  }
-
-  return (
-    <section className="mt-7 rounded-3xl border border-violet-100 bg-white p-5 shadow-sm md:p-7">
-
-      <div className="flex items-center gap-3">
-
-        <div className="rounded-xl bg-fuchsia-100 p-2.5 text-fuchsia-700">
-          <Scale size={20} />
-        </div>
-
-        <div>
-
-          <p className="text-xs font-bold uppercase tracking-wider text-fuchsia-600">
-            Evidence matrix
-          </p>
-
-          <h2 className="text-xl font-black text-slate-900">
-            Paper Comparison
-          </h2>
-
-        </div>
-
-      </div>
-
-      <div className="mt-6 rounded-2xl bg-slate-50 p-5">
-
-        <p className="text-sm leading-7 text-slate-700">
-          {value.summary}
-        </p>
-
-      </div>
-
-      <div className="mt-5 space-y-3">
-
-        {value.dimensions?.map(
-          (dimension, index) => (
-            <div
-              key={index}
-              className="rounded-2xl border border-slate-100 p-5"
-            >
-
-              <p className="font-bold text-violet-700">
-                {dimension.name}
-              </p>
-
-              <div className="mt-3 grid gap-3">
-
-                {dimension.values?.map(
-                  (
-                    item,
-                    valueIndex
-                  ) => (
-                    <div
-                      key={valueIndex}
-                      className="rounded-xl bg-slate-50 p-3"
-                    >
-
-                      <p className="text-xs font-bold text-slate-500">
-                        {item.paper}
-                      </p>
-
-                      <p className="mt-1 text-sm leading-6 text-slate-600">
-                        {item.value}
-                      </p>
-
-                    </div>
-                  )
-                )}
-
-              </div>
-
-            </div>
-          )
-        )}
-
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50 p-5">
-
-        <p className="text-xs font-bold uppercase tracking-wider text-violet-600">
-          AI takeaway
-        </p>
-
-        <p className="mt-2 text-sm leading-7 text-slate-700">
-          {value.takeaway}
-        </p>
-
-      </div>
-
-    </section>
   );
 }

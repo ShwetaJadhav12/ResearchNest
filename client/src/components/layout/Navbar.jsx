@@ -50,24 +50,20 @@ export default function Navbar() {
 
   const links = [
     {
-      name: "Home",
-      path: "/",
-    },
-    {
-      name: "Features",
-      path: "/features",
-    },
-    {
-      name: "Research",
-      path: "/research",
-    },
-    {
       name: "Dashboard",
       path: "/dashboard",
     },
     {
-      name: "Pricing",
-      path: "/pricing",
+      name: "Workspaces",
+      path: "/projects",
+    },
+    {
+      name: "Discovery",
+      path: "/discovery",
+    },
+    {
+      name: "AI Assistant",
+      path: "/research",
     },
   ];
 

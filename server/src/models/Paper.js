@@ -4,12 +4,48 @@ const paperSchema = new mongoose.Schema(
   {
     filename: {
       type: String,
-      required: true,
+      default: "document.pdf",
     },
 
     title: {
       type: String,
       default: "",
+    },
+
+    doi: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    journal: {
+      type: String,
+      default: "",
+    },
+
+    year: {
+      type: Number,
+    },
+
+    citationCount: {
+      type: Number,
+      default: 0,
+    },
+
+    officialUrl: {
+      type: String,
+      default: "",
+    },
+
+    pdfUrl: {
+      type: String,
+      default: "",
+    },
+
+    source: {
+      type: String,
+      enum: ["upload", "discovery"],
+      default: "upload",
     },
 
     authors: {

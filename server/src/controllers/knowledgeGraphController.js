@@ -1,5 +1,12 @@
 import Paper from "../models/Paper.js";
 
+const createNodeId = (type, value) => {
+  return `${type}-${String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")}`;
+};
+
 export const getKnowledgeGraph = async (req, res) => {
   try {
     const { workspaceId } = req.query;
@@ -13,171 +20,221 @@ export const getKnowledgeGraph = async (req, res) => {
     }
 
     const papers = await Paper.find(filter).select(
-      "_id filename title authors tags topic workspace abstract"
+      "_id filename title authors tags topic abstract"
     );
 
     const nodes = [];
     const edges = [];
 
-    const nodeMap = new Map();
+    const nodeIds = new Set();
+    const edgeIds = new Set();
 
-    const addNode = (id, type, label, data = {}) => {
-      if (nodeMap.has(id)) {
+    const addNode = (node) => {
+      if (!nodeIds.has(node.id)) {
+        nodes.push(node);
+        nodeIds.add(node.id);
+      }
+    };
+
+    const addEdge = (
+      source,
+      target,
+      relationship,
+      metadata = {}
+    ) => {
+      const edgeId = `${source}-${relationship}-${target}`;
+
+      if (edgeIds.has(edgeId)) {
         return;
       }
 
-      const node = {
-        id,
-        type,
-        label,
-        data,
-      };
-
-      nodeMap.set(id, node);
-      nodes.push(node);
-    };
-
-    const addEdge = (source, target, relationship) => {
       edges.push({
-        id: `${source}-${relationship}-${target}`,
+        id: edgeId,
         source,
         target,
         relationship,
+        ...metadata,
       });
+
+      edgeIds.add(edgeId);
     };
 
+    // -----------------------------------
+    // CREATE PAPER / TOPIC / AUTHOR / TAG
+    // NODES
+    // -----------------------------------
+
     for (const paper of papers) {
-      const paperId = `paper-${paper._id}`;
+      const paperNodeId = `paper-${paper._id}`;
 
-      addNode(
-        paperId,
-        "paper",
-        paper.title || paper.filename,
-        {
+      addNode({
+        id: paperNodeId,
+        type: "paper",
+        label: paper.title || paper.filename,
+        data: {
           paperId: paper._id,
+          title: paper.title || paper.filename,
           filename: paper.filename,
-          authors: paper.authors || [],
-          topic: paper.topic || "Research",
-          tags: paper.tags || [],
           abstract: paper.abstract || "",
-        }
-      );
+          topic: paper.topic || "",
+          authors: paper.authors || [],
+          tags: paper.tags || [],
+        },
+      });
 
-      // -------------------------
-      // AUTHORS
-      // -------------------------
-
-      for (const author of paper.authors || []) {
-        if (!author?.trim()) continue;
-
-        const authorId = `author-${author
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")}`;
-
-        addNode(
-          authorId,
-          "author",
-          author.trim(),
-          {
-            name: author.trim(),
-          }
-        );
-
-        addEdge(
-          paperId,
-          authorId,
-          "AUTHORED_BY"
-        );
-      }
-
-      // -------------------------
       // TOPIC
-      // -------------------------
 
       if (paper.topic?.trim()) {
-        const topicId = `topic-${paper.topic
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")}`;
-
-        addNode(
-          topicId,
+        const topicNodeId = createNodeId(
           "topic",
-          paper.topic.trim(),
-          {
-            topic: paper.topic.trim(),
-          }
+          paper.topic
         );
 
+        addNode({
+          id: topicNodeId,
+          type: "topic",
+          label: paper.topic.trim(),
+          data: {
+            topic: paper.topic.trim(),
+          },
+        });
+
         addEdge(
-          paperId,
-          topicId,
+          paperNodeId,
+          topicNodeId,
           "BELONGS_TO"
         );
       }
 
-      // -------------------------
+      // AUTHORS
+
+      for (const author of paper.authors || []) {
+        if (!author?.trim()) continue;
+
+        const authorNodeId = createNodeId(
+          "author",
+          author
+        );
+
+        addNode({
+          id: authorNodeId,
+          type: "author",
+          label: author.trim(),
+          data: {
+            name: author.trim(),
+          },
+        });
+
+        addEdge(
+          paperNodeId,
+          authorNodeId,
+          "AUTHORED_BY"
+        );
+      }
+
       // TAGS
-      // -------------------------
 
       for (const tag of paper.tags || []) {
         if (!tag?.trim()) continue;
 
-        const tagId = `tag-${tag
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")}`;
-
-        addNode(
-          tagId,
+        const tagNodeId = createNodeId(
           "tag",
-          tag.trim(),
-          {
-            tag: tag.trim(),
-          }
+          tag
         );
 
+        addNode({
+          id: tagNodeId,
+          type: "tag",
+          label: tag.trim(),
+          data: {
+            tag: tag.trim(),
+          },
+        });
+
         addEdge(
-          paperId,
-          tagId,
-          "TAGGED_WITH"
+          paperNodeId,
+          tagNodeId,
+          "HAS_CONCEPT"
         );
       }
     }
 
-    // -------------------------
-    // CONNECT PAPERS SHARING
-    // TOPICS OR TAGS
-    // -------------------------
+    // -----------------------------------
+    // CONNECT PAPERS
+    // -----------------------------------
 
     for (let i = 0; i < papers.length; i++) {
-      for (let j = i + 1; j < papers.length; j++) {
+      for (
+        let j = i + 1;
+        j < papers.length;
+        j++
+      ) {
         const paperA = papers[i];
         const paperB = papers[j];
 
-        const topicMatch =
+        const sharedTopics =
           paperA.topic &&
           paperB.topic &&
-          paperA.topic.toLowerCase() ===
-            paperB.topic.toLowerCase();
+          paperA.topic
+            .trim()
+            .toLowerCase() ===
+            paperB.topic
+              .trim()
+              .toLowerCase();
 
         const tagsA = new Set(
           (paperA.tags || []).map((tag) =>
-            tag.toLowerCase()
+            tag.trim().toLowerCase()
           )
         );
 
-        const sharedTags = (paperB.tags || []).filter(
-          (tag) =>
-            tagsA.has(tag.toLowerCase())
+        const sharedTags = (
+          paperB.tags || []
+        ).filter((tag) =>
+          tagsA.has(
+            tag.trim().toLowerCase()
+          )
         );
 
-        if (topicMatch || sharedTags.length > 0) {
+        const sharedAuthors =
+          (paperA.authors || []).filter(
+            (author) =>
+              (paperB.authors || [])
+                .map((a) =>
+                  a.trim().toLowerCase()
+                )
+                .includes(
+                  author.trim().toLowerCase()
+                )
+          );
+
+        const reasons = [];
+
+        if (sharedTopics) {
+          reasons.push("Same research topic");
+        }
+
+        if (sharedTags.length > 0) {
+          reasons.push(
+            `Shared concepts: ${sharedTags.join(", ")}`
+          );
+        }
+
+        if (sharedAuthors.length > 0) {
+          reasons.push("Shared author");
+        }
+
+        if (reasons.length > 0) {
           addEdge(
             `paper-${paperA._id}`,
             `paper-${paperB._id}`,
-            "RELATED_RESEARCH"
+            "RELATED_RESEARCH",
+            {
+              reasons,
+              sharedTags,
+              sharedAuthors,
+              sameTopic: Boolean(sharedTopics),
+            }
           );
         }
       }
@@ -198,7 +255,8 @@ export const getKnowledgeGraph = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "Failed to generate knowledge graph",
+      message:
+        "Failed to generate knowledge graph",
     });
   }
 };
