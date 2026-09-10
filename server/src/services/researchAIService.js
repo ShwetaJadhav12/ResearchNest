@@ -441,3 +441,76 @@ ${paperSummaries}`;
 
   return parseJson(response.text?.trim() || "{}");
 };
+
+// =========================================================================
+// AI RESEARCH GAP FINDER
+// Discovers unaddressed limitations, unexplored intersections & novel frontiers
+// =========================================================================
+export const detectResearchGaps = async ({ papers, topic, domainFocus = "", gapType = "all" }) => {
+  const ai = getAI();
+
+  const evidence = papers
+    .map((p, index) => {
+      const excerpt = (p.content || p.abstract || "").slice(0, 5000);
+      return `[PAPER ${index + 1}] Title: "${p.title || p.filename}" (${p.year || "Recent"})
+Authors: ${p.authors?.join(", ") || "Unknown"}
+Journal/Conference: ${p.journal || "N/A"}
+Abstract: ${p.abstract || "N/A"}
+Key Text Excerpt:
+${excerpt}`;
+    })
+    .join("\n\n---\n\n");
+
+  const prompt = `You are ResearchNest AI, an elite academic research methodologist and peer review expert.
+Analyze the following ${papers.length} research papers to perform a rigorous Research Gap Analysis.
+Topic Focus: "${topic || "Domain Overview"}"
+Target Gap Dimension: "${gapType}"
+Specific Domain Focus: "${domainFocus || "General Analysis"}"
+
+Analyze the provided research papers and extract genuine, concrete, and high-value research gaps based on limitations, omitted assumptions, unaddressed questions, evaluation bottlenecks, and dataset boundaries.
+
+Return ONLY a valid JSON object matching this schema (do NOT wrap in markdown fences or comments):
+{
+  "topic": "${topic || "Research Gap Analysis"}",
+  "gapDimension": "${gapType}",
+  "executiveLandscape": "A concise 2-3 sentence overview assessing the current frontiers, saturation points, and primary voids across these papers.",
+  "gaps": [
+    {
+      "id": "gap-1",
+      "title": "Concise, descriptive gap title",
+      "category": "Methodological / Empirical & Datasets / Theoretical / Scalability & Efficiency / Real-World Translation",
+      "severity": "Critical / High / Medium",
+      "unaddressedQuestion": "What precise research question or hypothesis remains unanswered in existing literature?",
+      "evidenceFromLiterature": "Specific limitations, performance drops, or omitted variables noted in the provided papers",
+      "missingComponents": [
+        "Omitted benchmark / dataset / parameter / modality"
+      ],
+      "recommendedApproach": "Actionable methodology, architecture, or empirical experiment recommended to resolve this gap",
+      "potentialImpact": "Significance, theoretical contribution, and practical importance to researchers",
+      "relevantPapers": [
+        "Title of cited paper from the provided list"
+      ]
+    }
+  ],
+  "unexploredCombinations": [
+    {
+      "combination": "Specific synthesis of two distinct techniques, domains, or frameworks",
+      "rationale": "Why these concepts have not been converged yet and what new advantage they unlock"
+    }
+  ],
+  "proposedResearchHypotheses": [
+    "Testable, falsifiable research hypothesis formulated to address the primary identified gaps",
+    "Secondary novel hypothesis for high-impact grant or paper submission"
+  ]
+}
+
+RESEARCH PAPERS:
+${evidence}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  return parseJson(response.text?.trim() || "{}");
+};

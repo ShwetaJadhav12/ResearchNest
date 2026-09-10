@@ -29,6 +29,9 @@ import {
 import Navbar from "../../components/layout/Navbar";
 import api from "../../api/axios";
 import toast from "react-hot-toast";
+import { SEED_PAPERS } from "../../data/seedPapers";
+
+const seedById = Object.fromEntries(SEED_PAPERS.map((p) => [p._id, p]));
 
 const HIGHLIGHT_COLORS = [
   { name: "purple", bg: "bg-purple-200/70", border: "border-purple-400", hex: "#c084fc", ring: "ring-purple-400" },
@@ -40,9 +43,11 @@ const HIGHLIGHT_COLORS = [
 
 export default function PaperReader() {
   const { paperId } = useParams();
+  const [activePaperId, setActivePaperId] = useState(paperId || "");
   const navigate = useNavigate();
 
   const [paper, setPaper] = useState(null);
+  const [allPapers, setAllPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -87,21 +92,65 @@ export default function PaperReader() {
   const [chatLoading, setChatLoading] = useState(false);
 
   const textContainerRef = useRef(null);
+  const pdfObjectUrlRef = useRef("");
+  const [pdfSrc, setPdfSrc] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
+  // ----------------------------------------------------
+  // INITIALIZE / RESOLVE ACTIVE PAPER
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (paperId) {
+      setActivePaperId(paperId);
+      return;
+    }
+
+    // No paperId provided: fetch papers and pick the first one
+    api
+      .get("/api/papers")
+      .then(({ data }) => {
+        const list = data.papers || [];
+        setAllPapers(list);
+        if (list.length > 0) {
+          setActivePaperId(list[0]._id);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        setError(err.response?.data?.message || "Failed to load library.");
+        setLoading(false);
+      });
+  }, [paperId]);
 
   // ----------------------------------------------------
   // FETCH PAPER & ANNOTATIONS
   // ----------------------------------------------------
   useEffect(() => {
+    if (!activePaperId) return;
+
+    const seedPaper = seedById[activePaperId];
+    if (seedPaper) {
+      setPaper(seedPaper);
+      setViewMode(seedPaper.pdfUrl ? "pdf" : "text");
+      setLoading(false);
+      setError("");
+      setAnnotations([]);
+      return;
+    }
+
     let active = true;
     setLoading(true);
+    setError("");
 
     api
-      .get(`/api/reader/${paperId}`)
+      .get(`/api/reader/${activePaperId}`)
       .then(({ data }) => {
         if (!active) return;
         setPaper(data.paper);
-        // Default to PDF mode if text content is short and PDF binary exists
-        if ((!data.paper.content || data.paper.content.length < 200) && data.paper.hasPdfBinary) {
+        const hasPdf = data.paper.hasPdfBinary || Boolean(data.paper.pdfUrl);
+        if ((!data.paper.content || data.paper.content.length < 200) && hasPdf) {
           setViewMode("pdf");
         }
       })
@@ -114,7 +163,7 @@ export default function PaperReader() {
       });
 
     api
-      .get(`/api/reader/${paperId}/annotations`)
+      .get(`/api/reader/${activePaperId}/annotations`)
       .then(({ data }) => {
         if (active) setAnnotations(data.annotations || []);
       })
@@ -123,7 +172,80 @@ export default function PaperReader() {
     return () => {
       active = false;
     };
-  }, [paperId]);
+  }, [activePaperId]);
+
+  useEffect(() => {
+    if (viewMode !== "pdf" || !paper) return;
+
+    let cancelled = false;
+
+    const clearObjectUrl = () => {
+      if (pdfObjectUrlRef.current) {
+        URL.revokeObjectURL(pdfObjectUrlRef.current);
+        pdfObjectUrlRef.current = "";
+      }
+    };
+
+    const loadPdf = async () => {
+      setPdfError("");
+      setPdfLoading(true);
+      clearObjectUrl();
+      setPdfSrc("");
+
+      const isSeed = Boolean(seedById[paper._id]);
+
+      if (paper.pdfUrl && (!paper.hasPdfBinary || isSeed)) {
+        if (!cancelled) {
+          setPdfSrc(paper.pdfUrl);
+          setPdfLoading(false);
+        }
+        return;
+      }
+
+      if (paper.hasPdfBinary) {
+        try {
+          const { data } = await api.get(`/api/reader/${paper._id}/pdf`, {
+            responseType: "blob",
+          });
+          if (cancelled) return;
+          const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
+          if (blob.type && blob.type.includes("application/json")) {
+            throw new Error("PDF not available");
+          }
+          const pdfBlob = blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+          const url = URL.createObjectURL(pdfBlob);
+          pdfObjectUrlRef.current = url;
+          setPdfSrc(url);
+        } catch (err) {
+          if (cancelled) return;
+          if (paper.pdfUrl) {
+            setPdfSrc(paper.pdfUrl);
+          } else {
+            setPdfError(err.response?.data?.message || "Could not load the PDF.");
+          }
+        } finally {
+          if (!cancelled) setPdfLoading(false);
+        }
+        return;
+      }
+
+      if (paper.pdfUrl) {
+        setPdfSrc(paper.pdfUrl);
+        setPdfLoading(false);
+        return;
+      }
+
+      setPdfError("No PDF is available for this paper.");
+      setPdfLoading(false);
+    };
+
+    loadPdf();
+
+    return () => {
+      cancelled = true;
+      clearObjectUrl();
+    };
+  }, [viewMode, paper]);
 
   // ----------------------------------------------------
   // TEXT SELECTION LISTENER
@@ -164,7 +286,7 @@ export default function PaperReader() {
     setAiActionResult(null);
 
     try {
-      const { data } = await api.post(`/api/reader/${paperId}/ai-action`, {
+      const { data } = await api.post(`/api/reader/${activePaperId}/ai-action`, {
         selectedText: selectedText || "",
         action,
         customQuestion: questionParam || customQuestion,
@@ -192,7 +314,27 @@ export default function PaperReader() {
 
     setSavingAnnotation(true);
     try {
-      const { data } = await api.post(`/api/reader/${paperId}/annotations`, {
+      if (seedById[activePaperId]) {
+        const annotation = {
+          _id: `local-${Date.now()}`,
+          type,
+          selectedText,
+          content: noteInput || (type === "highlight" ? "Highlighted excerpt" : ""),
+          aiResponse: aiRes || aiActionResult?.result || "",
+          color: selectedColor,
+          createdAt: new Date().toISOString(),
+        };
+        setAnnotations([annotation, ...annotations]);
+        toast.success(type === "highlight" ? "Highlight saved" : "Saved");
+        setSelectedText("");
+        setSelectionPosition(null);
+        setNoteInput("");
+        setActiveAIAction(null);
+        setAiActionResult(null);
+        return;
+      }
+
+      const { data } = await api.post(`/api/reader/${activePaperId}/annotations`, {
         type,
         selectedText,
         content: noteInput || (type === "highlight" ? "Highlighted excerpt" : ""),
@@ -229,6 +371,12 @@ export default function PaperReader() {
   // ----------------------------------------------------
   const handleDeleteAnnotation = async (id) => {
     try {
+      if (String(id).startsWith("local-") || seedById[activePaperId]) {
+        setAnnotations(annotations.filter((a) => a._id !== id));
+        toast.success("Removed annotation");
+        return;
+      }
+
       await api.delete(`/api/reader/annotations/${id}`);
       setAnnotations(annotations.filter((a) => a._id !== id));
       toast.success("Removed annotation");
@@ -251,7 +399,7 @@ export default function PaperReader() {
     setChatLoading(true);
 
     try {
-      const { data } = await api.post(`/api/reader/${paperId}/chat`, {
+      const { data } = await api.post(`/api/reader/${activePaperId}/chat`, {
         question: userMsg.content,
         history: updatedHistory.slice(-6),
       });
@@ -488,23 +636,31 @@ ${a.aiResponse ? `**AI Insight:**\n${a.aiResponse}\n` : ""}
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT / MAIN READER */}
         <main
-          className="flex-1 overflow-y-auto px-4 py-8 md:px-12 lg:px-16"
+          className={`flex-1 ${
+            viewMode === "pdf"
+              ? "flex min-h-0 flex-col overflow-hidden p-0"
+              : "overflow-y-auto px-4 py-8 md:px-12 lg:px-16"
+          }`}
           onMouseUp={handleMouseUp}
           ref={textContainerRef}
         >
           {viewMode === "pdf" ? (
             /* ------------------ PDF VIEWER MODE ------------------ */
-            <div className="h-full w-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+            <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-100">
+              <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-600">
                 <span className="font-medium">Original PDF Document</span>
                 <div className="flex items-center gap-2">
-                  <a
-                    href={`/api/papers/${paper._id}/download`}
-                    download
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Download size={13} /> Download
-                  </a>
+                  {pdfSrc && (
+                    <a
+                      href={pdfSrc}
+                      download={`${paper.title || paper.filename || "paper"}.pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download size={13} /> Download
+                    </a>
+                  )}
                   {paper.officialUrl && (
                     <a
                       href={paper.officialUrl}
@@ -518,11 +674,38 @@ ${a.aiResponse ? `**AI Insight:**\n${a.aiResponse}\n` : ""}
                 </div>
               </div>
 
-              <iframe
-                src={`/api/reader/${paper._id}/pdf#toolbar=1`}
-                title={paper.title}
-                className="h-full w-full border-none"
-              />
+              <div className="relative min-h-0 flex-1 bg-slate-200">
+                {pdfLoading && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+                    <div className="flex items-center gap-2 rounded-xl border border-violet-100 bg-white px-4 py-3 text-sm font-semibold text-violet-700 shadow-sm">
+                      <LoaderCircle className="animate-spin" size={18} />
+                      Loading PDF...
+                    </div>
+                  </div>
+                )}
+                {pdfError && !pdfSrc && (
+                  <div className="flex h-full items-center justify-center p-8">
+                    <div className="max-w-md rounded-2xl border border-rose-100 bg-white p-8 text-center shadow-sm">
+                      <FileText className="mx-auto mb-3 text-rose-400" size={28} />
+                      <p className="font-bold text-slate-900">PDF could not be displayed</p>
+                      <p className="mt-2 text-sm text-slate-500">{pdfError}</p>
+                      <button
+                        onClick={() => setViewMode("text")}
+                        className="mt-4 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700"
+                      >
+                        Switch to interactive text
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {pdfSrc && (
+                  <iframe
+                    src={pdfSrc}
+                    title={paper.title || "PDF viewer"}
+                    className="h-full w-full border-none bg-white"
+                  />
+                )}
+              </div>
             </div>
           ) : (
             /* ------------------ INTERACTIVE TEXT READER MODE ------------------ */

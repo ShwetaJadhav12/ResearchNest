@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   BookOpen,
   FileText,
@@ -11,86 +11,21 @@ import {
   Users,
   Highlighter,
   ArrowRight,
-  ExternalLink,
   Plus,
   Search,
-  CheckCircle2,
   Brain,
   Quote,
-  Layers,
   Filter,
   Copy,
   Clock,
-  Zap,
-  Tag,
-  Share2,
-  FolderOpen,
-  Bot,
-  BarChart3,
   X,
-  MessageSquare,
 } from "lucide-react";
 import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/landing/Footer";
 import Features from "../../components/landing/Features";
 import api from "../../api/axios";
 import toast from "react-hot-toast";
-
-const SEED_PAPERS = [
-  {
-    _id: "seed-1",
-    title: "Attention Is All You Need",
-    authors: ["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones"],
-    year: 2017,
-    topic: "Transformers & LLMs",
-    citationCount: 128450,
-    journal: "NeurIPS 2017",
-    doi: "10.48550/arXiv.1706.03762",
-    abstract: "We propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on an attention mechanism to draw global dependencies between input and output.",
-    source: "discovery",
-    pdfUrl: "https://arxiv.org/pdf/1706.03762.pdf",
-    tags: ["Self-Attention", "NLP", "Sequence Transduction"],
-  },
-  {
-    _id: "seed-2",
-    title: "Deep Residual Learning for Image Recognition",
-    authors: ["Kaiming He", "Xiangyu Zhang", "Shaoqing Ren", "Jian Sun"],
-    year: 2016,
-    topic: "Computer Vision",
-    citationCount: 194300,
-    journal: "CVPR 2016",
-    doi: "10.1109/CVPR.2016.90",
-    abstract: "Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously.",
-    source: "upload",
-    tags: ["ResNet", "Skip Connections", "Deep Architecture"],
-  },
-  {
-    _id: "seed-3",
-    title: "Language Models are Few-Shot Learners",
-    authors: ["Tom B. Brown", "Benjamin Mann", "Nick Ryder", "Melanie Subbiah", "Jared Kaplan"],
-    year: 2020,
-    topic: "Generative AI",
-    citationCount: 42100,
-    journal: "NeurIPS 2020",
-    doi: "10.48550/arXiv.2005.14165",
-    abstract: "We demonstrate that scaling up language models greatly improves task-agnostic, few-shot performance, sometimes even becoming competitive with prior state-of-the-art fine-tuning approaches.",
-    source: "discovery",
-    tags: ["GPT-3", "In-Context Learning", "Scaling Laws"],
-  },
-  {
-    _id: "seed-4",
-    title: "Retrieval-Augmented Generation for Knowledge-Intensive NLP",
-    authors: ["Patrick Lewis", "Ethan Perez", "Aleksandra Piktus", "Fabio Petroni"],
-    year: 2020,
-    topic: "Information Retrieval",
-    citationCount: 14800,
-    journal: "NeurIPS 2020",
-    doi: "10.48550/arXiv.2005.11401",
-    abstract: "Large pre-trained language models store factual knowledge in their parameters. We explore general-purpose fine-tuning recipes for retrieval-augmented generation (RAG).",
-    source: "upload",
-    tags: ["RAG", "Vector Search", "Dense Retrieval"],
-  },
-];
+import { SEED_PAPERS } from "../../data/seedPapers";
 
 const SEED_ACTIVITIES = [
   {
@@ -131,7 +66,6 @@ const SEED_ACTIVITIES = [
 ];
 
 export default function Dashboard() {
-  const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const [papers, setPapers] = useState([]);
@@ -143,7 +77,6 @@ export default function Dashboard() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTopic, setSelectedTopic] = useState("All");
-  const [activeTab, setActiveTab] = useState("all"); // 'all' | 'papers' | 'workspaces' | 'ai'
 
   // AI Copilot prompt box
   const [aiPrompt, setAiPrompt] = useState("");
@@ -281,338 +214,281 @@ export default function Dashboard() {
   const totalWorkspaceCount = workspaces.length > 0 ? workspaces.length : 2;
   const totalTopicCount = availableTopics.length - 1 || 3;
 
+  const activityMeta = {
+    upload: { icon: Upload, tint: "bg-violet-100 text-violet-700" },
+    ai: { icon: Sparkles, tint: "bg-fuchsia-100 text-fuchsia-700" },
+    reader: { icon: Highlighter, tint: "bg-amber-100 text-amber-700" },
+    writer: { icon: Quote, tint: "bg-sky-100 text-sky-700" },
+    team: { icon: Users, tint: "bg-emerald-100 text-emerald-700" },
+  };
+
   return (
-    <div className="min-h-screen bg-[#FAF8FF] text-slate-900 selection:bg-purple-200 selection:text-purple-900 pb-20">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#F6F3FF] text-slate-900 selection:bg-violet-200 selection:text-violet-900">
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -left-24 top-0 h-[28rem] w-[28rem] rounded-full bg-violet-300/30 blur-3xl" />
+        <div className="absolute right-0 top-40 h-[22rem] w-[22rem] rounded-full bg-fuchsia-200/40 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-sky-200/25 blur-3xl" />
+      </div>
+
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-6">
-        
-        {/* TOP HERO & SEARCH APP BAR */}
-        <section className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-violet-900 via-purple-800 to-slate-950 p-6 sm:p-10 text-white shadow-2xl shadow-violet-950/20">
-          {/* Ambient Glows */}
-          <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-violet-400/20 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-fuchsia-500/15 blur-3xl pointer-events-none" />
+      <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/20 bg-[radial-gradient(1200px_circle_at_0%_0%,rgba(167,139,250,0.35),transparent_45%),radial-gradient(900px_circle_at_100%_20%,rgba(244,114,182,0.22),transparent_40%),linear-gradient(145deg,#2e1065_0%,#4c1d95_42%,#1e1b4b_100%)] p-6 text-white shadow-[0_24px_80px_-28px_rgba(76,29,149,0.55)] sm:p-10">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2760%27 height=%2760%27 viewBox=%270 0 60 60%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cg fill=%27none%27 fill-rule=%27evenodd%27%3E%3Cg fill=%27%23ffffff%27 fill-opacity=%270.04%27%3E%3Ccircle cx=%2730%27 cy=%2730%27 r=%271.5%27/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-70" />
 
           <div className="relative z-10">
-            {/* Top Bar with User Greeting & Status Indicator */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-lg font-bold border border-white/15 backdrop-blur-md">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/10 text-xl font-black text-white shadow-inner backdrop-blur-md">
                   {user?.name ? user.name.charAt(0).toUpperCase() : "R"}
                 </div>
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-                    {user?.name ? `Welcome, ${user.name}` : "Research Workspace"}
-                  </h1>
-                  <p className="text-xs text-violet-200/80 font-medium">
-                    Connected papers, notes, citations, and workspaces
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+                      {user?.name ? `Welcome back, ${user.name}` : "Research Workspace"}
+                    </h1>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
+                      Live
+                    </span>
+                  </div>
+                  <p className="mt-1 max-w-xl text-sm text-violet-100/85">
+                    Discover, read, annotate, and synthesize papers in one calm workspace.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="flex items-center gap-2 rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-md">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Gemini Active
-                </span>
+              <div className="flex items-center gap-2.5">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-violet-800 shadow-lg shadow-violet-950/20 transition hover:-translate-y-0.5 hover:bg-violet-50">
+                  <Upload size={14} />
+                  <span>{uploading ? "Analyzing..." : "Upload PDF"}</span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    disabled={uploading}
+                    onChange={handleDirectUpload}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={() => setShowNewWorkspaceModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/20"
+                >
+                  <Plus size={14} />
+                  New Workspace
+                </button>
               </div>
             </div>
 
-            {/* Central Unified Search Bar */}
-            <div className="mt-6 relative max-w-2xl">
-              <div className="relative flex items-center">
-                <Search size={16} className="absolute left-4 text-violet-300" />
+            <div className="mt-8 max-w-3xl">
+              <div className="relative">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-violet-200" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search papers by title, author, or topic..."
-                  className="w-full rounded-xl bg-white/10 border border-white/20 pl-11 pr-10 py-3 text-xs sm:text-sm text-white placeholder-violet-200/60 outline-none backdrop-blur-md transition focus:border-white focus:bg-white/15"
+                  placeholder="Search by title, author, abstract, or topic..."
+                  className="w-full rounded-2xl border border-white/20 bg-white/12 py-4 pl-12 pr-12 text-sm text-white outline-none placeholder-violet-200/70 shadow-inner backdrop-blur-md transition focus:border-white/50 focus:bg-white/18"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery("")}
-                    className="absolute right-3 text-violet-300 hover:text-white"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-violet-200 hover:text-white"
                   >
-                    <X size={15} />
+                    <X size={16} />
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Quick Action Navigation Buttons */}
-            <div className="mt-5 flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
-              <Link
-                to="/features/upload-organize"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white text-violet-900 px-3.5 py-1.5 text-xs font-bold shadow hover:bg-violet-50 transition"
-              >
-                <FileText size={14} className="text-violet-700" />
-                <span>Upload & Organize</span>
-              </Link>
-
-              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/25 transition">
-                <Upload size={13} />
-                <span>{uploading ? "Analyzing..." : "Quick Upload"}</span>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  disabled={uploading}
-                  onChange={handleDirectUpload}
-                  className="hidden"
-                />
-              </label>
-
-              <Link
-                to="/discovery"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/25 transition"
-              >
-                <Compass size={13} className="text-emerald-300" />
-                <span>Discovery</span>
-              </Link>
-
-              <Link
-                to="/research"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/25 transition"
-              >
-                <Sparkles size={13} className="text-fuchsia-300" />
-                <span>AI Writer</span>
-              </Link>
-
-              <Link
-                to="/knowledge-graph"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/25 transition"
-              >
-                <Brain size={13} className="text-sky-300" />
-                <span>Knowledge Graph</span>
-              </Link>
-
-              <Link
-                to="/projects"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/25 transition"
-              >
-                <Users size={13} className="text-purple-300" />
-                <span>Workspaces</span>
-              </Link>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {[
+                { to: "/features/upload-organize", icon: FileText, label: "Upload & Organize", color: "text-violet-200" },
+                { to: "/research", icon: Sparkles, label: "AI Assistant", color: "text-fuchsia-300" },
+                { to: "/reader/seed-1", icon: BookOpen, label: "AI Reader", color: "text-amber-300" },
+                { to: "/discovery", icon: Compass, label: "Discovery", color: "text-emerald-300" },
+                { to: "/projects", icon: Users, label: "Workspaces", color: "text-indigo-200" },
+                { to: "/knowledge-graph", icon: Brain, label: "Knowledge Graph", color: "text-sky-300" },
+              ].map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md transition hover:border-white/30 hover:bg-white/20"
+                >
+                  <item.icon size={13} className={item.color} />
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* METRICS ROW */}
-        <section className="mt-6 grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Library Papers</span>
-              <FileText size={16} className="text-violet-600" />
+        <section className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[
+            { label: "Library papers", value: totalPaperCount, hint: "Indexed full text", icon: FileText, wrap: "from-violet-50 to-white", iconWrap: "bg-violet-100 text-violet-700" },
+            { label: "Lab workspaces", value: totalWorkspaceCount, hint: "Shared collections", icon: FolderKanban, wrap: "from-fuchsia-50 to-white", iconWrap: "bg-fuchsia-100 text-fuchsia-700" },
+            { label: "Research topics", value: totalTopicCount, hint: "Auto-clustered", icon: Compass, wrap: "from-emerald-50 to-white", iconWrap: "bg-emerald-100 text-emerald-700" },
+            { label: "Citation styles", value: "6", hint: "IEEE, APA & more", icon: Quote, wrap: "from-amber-50 to-white", iconWrap: "bg-amber-100 text-amber-700" },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className={`rounded-3xl border border-white/80 bg-gradient-to-br ${stat.wrap} p-5 shadow-[0_10px_40px_-24px_rgba(76,29,149,0.35)] transition hover:-translate-y-0.5 hover:shadow-lg`}
+            >
+              <div className="flex items-start justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{stat.label}</p>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${stat.iconWrap}`}>
+                  <stat.icon size={18} />
+                </div>
+              </div>
+              <p className="mt-4 text-3xl font-black tracking-tight text-slate-900">{stat.value}</p>
+              <p className="mt-1 text-xs text-slate-500">{stat.hint}</p>
             </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{totalPaperCount}</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Workspaces</span>
-              <FolderKanban size={16} className="text-fuchsia-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{totalWorkspaceCount}</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Topics</span>
-              <Compass size={16} className="text-emerald-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{totalTopicCount}</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Citation Formats</span>
-              <Quote size={16} className="text-amber-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">6 Styles</p>
-          </div>
+          ))}
         </section>
 
-        {/* WORKSPACE & COLLABORATION HUBS PREVIEW */}
-        <section className="mt-10">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <section className="mt-12">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                Active Research Workspaces
-              </h2>
-              <p className="text-xs text-slate-500">
-                All papers, notes, AI chats, and team activities connected in shared hubs
-              </p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-600">Collaborative rooms</p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">Active research workspaces</h2>
+              <p className="mt-1 text-sm text-slate-500">Papers, notes, AI chats, and team activity in one lab.</p>
             </div>
-
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowNewWorkspaceModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 px-3.5 py-1.5 text-xs font-bold transition"
+                className="inline-flex items-center gap-1.5 rounded-2xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-violet-500/20 transition hover:bg-violet-700"
               >
-                <Plus size={15} />
-                <span>New Workspace</span>
+                <Plus size={14} />
+                New Workspace
               </button>
               <Link
                 to="/projects"
-                className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:text-violet-800 transition"
+                className="inline-flex items-center gap-1 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 transition hover:border-violet-300 hover:text-violet-700"
               >
-                View all ({totalWorkspaceCount}) →
+                View all <ArrowRight size={13} />
               </Link>
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {workspaces.length > 0 ? (
               workspaces.map((ws) => (
                 <Link
                   key={ws._id}
                   to={`/projects/${ws._id}`}
-                  className="group rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs transition hover:border-violet-300 hover:shadow-md"
+                  className="group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-violet-300 hover:shadow-xl"
                 >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="rounded-full bg-violet-50 border border-violet-100 px-2.5 py-0.5 font-bold text-violet-700">
-                      {ws.topic || "Research"}
-                    </span>
-                    <span className="font-semibold text-slate-400">
-                      {ws.papersCount || 0} papers
-                    </span>
-                  </div>
-                  <h3 className="mt-3 text-lg font-bold text-slate-900 group-hover:text-violet-700 transition">
-                    {ws.name}
-                  </h3>
-                  <p className="mt-1.5 text-xs text-slate-500 line-clamp-2">
-                    {ws.description || "Active collaborative research collection."}
-                  </p>
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-400">
-                      {ws.members?.length || 1} team member{ws.members?.length !== 1 ? "s" : ""}
-                    </span>
-                    <span className="font-bold text-violet-600 inline-flex items-center gap-1">
-                      Open Project <ArrowRight size={13} className="transition group-hover:translate-x-1" />
-                    </span>
+                  <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-violet-100/70 blur-2xl transition group-hover:bg-violet-200/80" />
+                  <div className="relative">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="rounded-full bg-violet-50 px-3 py-1 font-bold text-violet-700">{ws.topic || "Research"}</span>
+                      <span className="rounded-lg bg-slate-50 px-2 py-0.5 font-semibold text-slate-400">{ws.papersCount || 0} papers</span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-slate-900 transition group-hover:text-violet-700">{ws.name}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-500">
+                      {ws.description || "Active collaborative research collection."}
+                    </p>
+                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
+                      <span className="inline-flex items-center gap-1 font-semibold text-slate-400">
+                        <Users size={13} /> {ws.members?.length || 1} collaborator{(ws.members?.length || 1) !== 1 ? "s" : ""}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-bold text-violet-600">
+                        Open lab <ArrowRight size={13} className="transition group-hover:translate-x-1" />
+                      </span>
+                    </div>
                   </div>
                 </Link>
               ))
             ) : (
-              // Default seed workspace cards for immediate rich look
               <>
                 <Link
                   to="/projects"
-                  className="group rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs transition hover:border-violet-300 hover:shadow-md"
+                  className="group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-violet-300 hover:shadow-xl"
                 >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="rounded-full bg-violet-50 border border-violet-100 px-2.5 py-0.5 font-bold text-violet-700">
-                      LLM Reasoning
-                    </span>
-                    <span className="font-semibold text-slate-400">4 papers</span>
-                  </div>
-                  <h3 className="mt-3 text-lg font-bold text-slate-900 group-hover:text-violet-700 transition">
-                    Transformer Architectures & Reasoning
-                  </h3>
-                  <p className="mt-1.5 text-xs text-slate-500 line-clamp-2">
-                    Surveying modern self-attention, in-context learning, and retrieval augmentation.
-                  </p>
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-400">2 collaborators</span>
-                    <span className="font-bold text-violet-600 inline-flex items-center gap-1">
-                      Open Project <ArrowRight size={13} className="transition group-hover:translate-x-1" />
-                    </span>
+                  <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-violet-100/70 blur-2xl" />
+                  <div className="relative">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="rounded-full bg-violet-50 px-3 py-1 font-bold text-violet-700">LLM Reasoning</span>
+                      <span className="rounded-lg bg-slate-50 px-2 py-0.5 font-semibold text-slate-400">4 papers</span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-slate-900 group-hover:text-violet-700">Transformer Architectures & Reasoning</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-500">
+                      Surveying modern self-attention, in-context learning, and retrieval-augmented generation.
+                    </p>
+                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
+                      <span className="inline-flex items-center gap-1 font-semibold text-slate-400"><Users size={13} className="text-violet-500" /> 2 collaborators</span>
+                      <span className="inline-flex items-center gap-1 font-bold text-violet-600">Open lab <ArrowRight size={13} /></span>
+                    </div>
                   </div>
                 </Link>
-
                 <Link
                   to="/projects"
-                  className="group rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs transition hover:border-violet-300 hover:shadow-md"
+                  className="group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-emerald-300 hover:shadow-xl"
                 >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 font-bold text-emerald-700">
-                      Computer Vision
-                    </span>
-                    <span className="font-semibold text-slate-400">3 papers</span>
-                  </div>
-                  <h3 className="mt-3 text-lg font-bold text-slate-900 group-hover:text-emerald-700 transition">
-                    Visual Representation & Deep ResNets
-                  </h3>
-                  <p className="mt-1.5 text-xs text-slate-500 line-clamp-2">
-                    Residual learning frameworks, vision transformers, and multi-modal feature extractors.
-                  </p>
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-400">1 collaborator</span>
-                    <span className="font-bold text-emerald-600 inline-flex items-center gap-1">
-                      Open Project <ArrowRight size={13} className="transition group-hover:translate-x-1" />
-                    </span>
+                  <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-100/70 blur-2xl" />
+                  <div className="relative">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 font-bold text-emerald-700">Computer Vision</span>
+                      <span className="rounded-lg bg-slate-50 px-2 py-0.5 font-semibold text-slate-400">3 papers</span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-bold text-slate-900 group-hover:text-emerald-700">Visual Representation & Deep ResNets</h3>
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-500">
+                      Residual learning frameworks, vision transformers, and multimodal feature extraction.
+                    </p>
+                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
+                      <span className="inline-flex items-center gap-1 font-semibold text-slate-400"><Users size={13} className="text-emerald-500" /> 1 collaborator</span>
+                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600">Open lab <ArrowRight size={13} /></span>
+                    </div>
                   </div>
                 </Link>
-
-                <div
+                <button
+                  type="button"
                   onClick={() => setShowNewWorkspaceModal(true)}
-                  className="cursor-pointer rounded-3xl border-2 border-dashed border-violet-200 bg-violet-50/40 p-6 flex flex-col items-center justify-center text-center hover:bg-violet-50 transition"
+                  className="flex min-h-[210px] flex-col items-center justify-center rounded-[1.75rem] border-2 border-dashed border-violet-200 bg-white/60 p-6 text-center transition hover:border-violet-400 hover:bg-violet-50"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 mb-2">
-                    <Plus size={20} />
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+                    <Plus size={22} />
                   </div>
-                  <h3 className="text-sm font-bold text-violet-900">Create New Workspace</h3>
-                  <p className="text-xs text-violet-600 mt-1">
-                    Group papers, notes, and team members into a focused lab space.
-                  </p>
-                </div>
+                  <h3 className="text-sm font-bold text-violet-900">Create a new workspace</h3>
+                  <p className="mt-1 max-w-[220px] text-xs text-violet-600">Group papers, notes, and teammates into a focused lab.</p>
+                </button>
               </>
             )}
           </div>
         </section>
 
-        {/* MAIN WORKFLOW GRID: PAPERS LIBRARY + AI COPILOT & ACTIVITY */}
-        <section className="mt-10 grid gap-8 lg:grid-cols-12">
-          
-          {/* LEFT 8 COLUMNS: PAPERS LIBRARY & FILTERS */}
-          <div className="lg:col-span-8 space-y-6">
-            
-            {/* Header with Topic Filters */}
-            <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+        <section className="mt-12 grid gap-8 lg:grid-cols-12">
+          <div className="lg:col-span-8">
+            <div className="rounded-[1.75rem] border border-white/80 bg-white/90 p-6 shadow-[0_18px_60px_-32px_rgba(76,29,149,0.45)] backdrop-blur sm:p-7">
+              <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                    Research Papers Library
-                    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-700">
-                      {filteredPapers.length}
-                    </span>
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Click any paper to read with in-line AI assistance, or copy academic citations
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-black tracking-tight text-slate-900">Research library</h2>
+                    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-700">{filteredPapers.length}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">Open a paper to read the PDF, highlight, and ask Gemini about the methods.</p>
                 </div>
-
                 <div className="flex items-center gap-2">
-                  <Link
-                    to="/discovery"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1.5 text-xs font-bold hover:bg-emerald-100 transition"
-                  >
-                    <Compass size={14} />
-                    Search 200M+ Papers
+                  <Link to="/discovery" className="inline-flex items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
+                    <Compass size={14} /> Search 200M+
                   </Link>
-
-                  <Link
-                    to="/features/upload-organize"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 text-violet-700 border border-violet-200 px-3 py-1.5 text-xs font-bold hover:bg-violet-100 transition"
-                  >
-                    <Upload size={14} />
-                    Upload & Organize (F1)
+                  <Link to="/features/upload-organize" className="inline-flex items-center gap-1.5 rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100">
+                    <Upload size={14} /> Organize
                   </Link>
                 </div>
               </div>
 
-              {/* Topic Filter Pills */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold text-slate-400 flex items-center gap-1 mr-1">
-                  <Filter size={12} /> Filter:
+                <span className="mr-1 inline-flex items-center gap-1 text-xs font-semibold text-slate-400">
+                  <Filter size={12} /> Topic
                 </span>
                 {availableTopics.map((topic) => (
                   <button
                     key={topic}
                     onClick={() => setSelectedTopic(topic)}
-                    className={`rounded-xl px-3 py-1 text-xs font-semibold transition ${
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                       selectedTopic === topic
-                        ? "bg-violet-600 text-white shadow-xs"
+                        ? "bg-violet-600 text-white shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
@@ -621,68 +497,62 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {/* Papers List */}
               <div className="mt-6 space-y-4">
                 {loading ? (
-                  <div className="flex justify-center py-12 text-violet-600">
-                    <LoaderCircle className="animate-spin" size={32} />
+                  <div className="flex justify-center py-16 text-violet-600">
+                    <LoaderCircle className="animate-spin" size={36} />
                   </div>
                 ) : filteredPapers.length > 0 ? (
                   filteredPapers.map((paper) => (
                     <div
                       key={paper._id}
-                      className="group rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5 hover:bg-white hover:border-violet-300 hover:shadow-md transition-all duration-200"
+                      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50/80 to-white p-5 transition hover:border-violet-300 hover:shadow-lg"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          {/* Badges */}
+                      <div className="absolute bottom-0 left-0 top-0 w-1 bg-gradient-to-b from-violet-500 to-fuchsia-400 opacity-0 transition group-hover:opacity-100" />
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">
                               {paper.topic || paper.folder || "Research"}
                             </span>
-                            {paper.year && (
-                              <span className="text-[11px] font-semibold text-slate-400">
-                                {paper.year}
-                              </span>
-                            )}
-                            {paper.journal && (
-                              <span className="text-[11px] font-medium text-slate-500">
-                                • {paper.journal}
-                              </span>
-                            )}
+                            {paper.year && <span className="text-[11px] font-semibold text-slate-400">{paper.year}</span>}
+                            {paper.journal && <span className="text-[11px] text-slate-500">• {paper.journal}</span>}
                             {paper.citationCount !== undefined && (
-                              <span className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.2 text-[10px] font-bold text-emerald-700">
-                                {paper.citationCount.toLocaleString()} Citations
+                              <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                {paper.citationCount.toLocaleString()} citations
                               </span>
                             )}
                           </div>
-
-                          {/* Title */}
-                          <h3 className="mt-2 text-base font-bold text-slate-900 group-hover:text-violet-700 transition leading-snug">
-                            {paper.title || paper.filename}
+                          <h3 className="mt-2 text-base font-bold leading-snug text-slate-900 transition group-hover:text-violet-700">
+                            <Link to={`/reader/${paper._id}`}>{paper.title || paper.filename}</Link>
                           </h3>
-
-                          {/* Authors */}
-                          <p className="mt-1 text-xs text-slate-500 font-medium">
-                            {Array.isArray(paper.authors) ? paper.authors.join(", ") : paper.authors || "Unknown Authors"}
+                          <p className="mt-1 text-xs font-medium text-slate-500">
+                            {Array.isArray(paper.authors) ? paper.authors.join(", ") : paper.authors || "Unknown authors"}
                           </p>
-
+                          {paper.abstract && (
+                            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-600">{paper.abstract}</p>
+                          )}
+                          {paper.tags?.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {paper.tags.slice(0, 3).map((tag) => (
+                                <span key={tag} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap sm:flex-col items-end gap-2 shrink-0 pt-2 sm:pt-0">
+                        <div className="flex shrink-0 flex-wrap items-end gap-2 sm:flex-col">
                           <Link
                             to={`/reader/${paper._id}`}
-                            className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-3.5 py-2 text-xs font-bold shadow-xs hover:shadow transition"
+                            className="inline-flex items-center gap-1.5 rounded-2xl bg-violet-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-violet-700"
                           >
                             <BookOpen size={14} />
-                            Read with AI
+                            Read PDF
                           </Link>
-
                           <button
                             onClick={() => copyCitation(paper)}
-                            className="inline-flex items-center gap-1 rounded-xl bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50 text-slate-700 px-2.5 py-1.5 text-xs font-semibold shadow-xs transition"
-                            title="Copy IEEE Citation"
+                            className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-violet-300 hover:bg-violet-50"
                           >
                             <Copy size={13} className="text-violet-600" />
                             Cite IEEE
@@ -694,15 +564,14 @@ export default function Dashboard() {
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center">
                     <p className="text-sm font-semibold text-slate-600">No papers matched your search.</p>
-                    <p className="text-xs text-slate-400 mt-1">Try clearing filters or search terms.</p>
                     <button
                       onClick={() => {
                         setSearchQuery("");
                         setSelectedTopic("All");
                       }}
-                      className="mt-4 rounded-xl bg-violet-50 text-violet-700 px-4 py-2 text-xs font-bold hover:bg-violet-100 transition"
+                      className="mt-4 rounded-xl bg-violet-50 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100"
                     >
-                      Reset Filters
+                      Reset filters
                     </button>
                   </div>
                 )}
@@ -710,145 +579,113 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* RIGHT 4 COLUMNS: AI COPILOT QUERY + RECENT ACTIVITY STREAM */}
-          <div className="lg:col-span-4 space-y-6">
-            
-            {/* AI Research Companion Box */}
-            <div className="rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-6 text-white shadow-xl shadow-violet-500/10">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
-                  <Sparkles size={16} className="text-white" />
+          <div className="space-y-6 lg:col-span-4">
+            <div className="overflow-hidden rounded-[1.75rem] border border-violet-200/60 bg-gradient-to-br from-violet-700 via-purple-600 to-fuchsia-600 p-6 text-white shadow-xl shadow-violet-500/15">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20">
+                  <Sparkles size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold">Gemini 2.5 Flash Copilot</h3>
-                  <p className="text-[11px] text-violet-100">Live Research Assistant</p>
+                  <h3 className="text-sm font-black">Gemini copilot</h3>
+                  <p className="text-[11px] text-violet-100">Ask across your library</p>
                 </div>
               </div>
-
-              <p className="mt-3 text-xs text-violet-100 leading-relaxed">
-                Query across all papers in your library to extract methodology, compare findings, or synthesize summaries.
+              <p className="mt-3 text-xs leading-relaxed text-violet-100">
+                Extract methods, compare findings, or draft a literature summary from the papers you already have.
               </p>
-
-              {/* Quick Prompt Pills */}
               <div className="mt-4 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200">
-                  Instant Prompts
-                </p>
                 {[
+                  "Find research gaps & missing benchmarks",
                   "Synthesize key innovations across papers",
                   "Compare methodology differences",
                   "Draft literature review in IEEE format",
-                ].map((prompt, i) => (
+                ].map((prompt) => (
                   <button
-                    key={i}
+                    key={prompt}
                     onClick={() => handleQuickAsk(prompt)}
-                    className="w-full text-left rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-2 text-xs text-violet-50 transition flex items-center justify-between"
+                    className="group flex w-full items-center justify-between rounded-2xl border border-white/15 bg-white/10 px-3 py-2 text-left text-xs text-violet-50 transition hover:bg-white/20"
                   >
                     <span className="truncate pr-2">{prompt}</span>
-                    <ArrowRight size={12} className="shrink-0 text-violet-200" />
+                    <ArrowRight size={12} className="shrink-0 transition group-hover:translate-x-1" />
                   </button>
                 ))}
               </div>
-
-              {/* Live Answer Box */}
               {aiThinking && (
-                <div className="mt-4 rounded-xl bg-black/20 p-3 text-xs text-violet-100 flex items-center gap-2">
+                <div className="mt-4 flex items-center gap-2 rounded-xl bg-black/20 p-3 text-xs text-violet-100">
                   <LoaderCircle className="animate-spin" size={15} />
-                  <span>Synthesizing library knowledge...</span>
+                  Synthesizing library knowledge...
                 </div>
               )}
-
               {aiResponse && (
-                <div className="mt-4 rounded-xl bg-white text-slate-900 p-4 text-xs shadow-lg space-y-2">
-                  <div className="flex items-center justify-between font-bold text-violet-900 border-b border-slate-100 pb-1.5">
-                    <span className="flex items-center gap-1">
+                <div className="mt-4 space-y-2 rounded-2xl bg-white p-4 text-xs text-slate-900 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 font-bold text-violet-900">
+                    <span className="inline-flex items-center gap-1">
                       <Sparkles size={12} className="text-violet-600" />
-                      Gemini Synthesis
+                      Gemini synthesis
                     </span>
-                    <button
-                      onClick={() => setAiResponse(null)}
-                      className="text-slate-400 hover:text-slate-600"
-                    >
+                    <button onClick={() => setAiResponse(null)} className="text-slate-400 hover:text-slate-600">
                       <X size={14} />
                     </button>
                   </div>
-                  <p className="text-slate-600 leading-relaxed font-serif">
-                    {aiResponse.answer}
-                  </p>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[10px] font-semibold text-slate-400">
-                      Grounded in: {aiResponse.sources[0]}
-                    </span>
-                    <Link
-                      to="/research"
-                      className="text-[11px] font-bold text-violet-600 hover:text-violet-800"
-                    >
-                      Open in Writer →
+                  <p className="font-serif leading-relaxed text-slate-600">{aiResponse.answer}</p>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                    <span className="text-[10px] font-semibold text-slate-400">Grounded in: {aiResponse.sources[0]}</span>
+                    <Link to="/research" className="text-[11px] font-bold text-violet-600">
+                      Open writer →
                     </Link>
                   </div>
                 </div>
               )}
-
-              <div className="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs">
-                <Link
-                  to="/research"
-                  className="font-bold text-white hover:text-violet-200 flex items-center gap-1"
-                >
-                  Full AI Writer <ArrowRight size={13} />
-                </Link>
-              </div>
+              <Link to="/research" className="mt-4 inline-flex items-center gap-1 border-t border-white/15 pt-3 text-xs font-bold text-white hover:text-violet-100">
+                Full AI research assistant <ArrowRight size={13} />
+              </Link>
             </div>
 
-            {/* Recent Activity Feed (Integrated from Home Page) */}
-            <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <div className="rounded-[1.75rem] border border-white/80 bg-white/90 p-6 shadow-sm backdrop-blur">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="inline-flex items-center gap-2 text-sm font-black text-slate-900">
                   <Clock size={16} className="text-violet-600" />
-                  Recent Research Activity
+                  Recent activity
                 </h3>
-                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  Live Feed
-                </span>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Live</span>
               </div>
-
-              <div className="mt-4 space-y-3.5">
-                {SEED_ACTIVITIES.map((act) => (
-                  <div key={act.id} className="flex items-start gap-3 text-xs">
-                    <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600 border border-violet-100">
-                      <CheckCircle2 size={13} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 leading-tight">
-                        {act.action}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                        <span>{act.user}</span>
-                        <span>•</span>
-                        <span>{act.time}</span>
+              <div className="mt-4 space-y-4">
+                {SEED_ACTIVITIES.map((act) => {
+                  const meta = activityMeta[act.type] || activityMeta.ai;
+                  const Icon = meta.icon;
+                  return (
+                    <div key={act.id} className="flex items-start gap-3 text-xs">
+                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${meta.tint}`}>
+                        <Icon size={14} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold leading-tight text-slate-800">{act.action}</p>
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                          <span>{act.user}</span>
+                          <span>•</span>
+                          <span>{act.time}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-
-              <div className="mt-5 pt-3 border-t border-slate-100">
-                <Link
-                  to="/projects"
-                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 hover:bg-violet-50 hover:text-violet-700 text-slate-600 py-2 text-xs font-semibold transition"
-                >
-                  <Users size={14} />
-                  <span>View All Workspace Audits</span>
-                </Link>
-              </div>
+              <Link
+                to="/projects"
+                className="mt-5 inline-flex w-full items-center justify-center gap-1.5 rounded-2xl bg-slate-50 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-violet-50 hover:text-violet-700"
+              >
+                <Users size={14} />
+                View workspace audits
+              </Link>
             </div>
-
           </div>
-
         </section>
 
+        <section className="mt-16 border-t border-slate-200/80 pt-10">
+          <Features title="Platform Capabilities" subtitle="Explore the 6 Research Features" />
+        </section>
       </main>
 
-      {/* CREATE WORKSPACE MODAL */}
       {showNewWorkspaceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-2xl">
@@ -864,12 +701,9 @@ export default function Dashboard() {
                 <X size={18} />
               </button>
             </div>
-
             <form onSubmit={handleCreateWorkspace} className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Workspace Title *
-                </label>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Workspace Title *</label>
                 <input
                   type="text"
                   required
@@ -879,11 +713,8 @@ export default function Dashboard() {
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Research Topic / Discipline
-                </label>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Research Topic / Discipline</label>
                 <input
                   type="text"
                   value={newWsTopic}
@@ -892,32 +723,25 @@ export default function Dashboard() {
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                  Description / Goals
-                </label>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">Description / Goals</label>
                 <textarea
                   rows={3}
                   value={newWsDesc}
                   onChange={(e) => setNewWsDesc(e.target.value)}
                   placeholder="Briefly outline what research questions this workspace investigates..."
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200 resize-none"
+                  className="w-full resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
                 />
               </div>
-
               <div className="flex items-center justify-end gap-2.5 pt-3">
                 <button
                   type="button"
                   onClick={() => setShowNewWorkspaceModal(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white px-5 py-2 text-xs font-bold shadow-md shadow-violet-500/20 transition"
-                >
+                <button type="submit" className="rounded-xl bg-violet-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-violet-500/20 hover:bg-violet-700">
                   Create Workspace
                 </button>
               </div>
@@ -926,11 +750,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* FOOTER */}
       <div className="mt-20">
         <Footer />
       </div>
-
     </div>
   );
 }

@@ -26,6 +26,7 @@ function App() {
         <Route path="/projects/:workspaceId" element={<WorkspaceDetail />} />
         <Route path="/workspaces/:workspaceId" element={<WorkspaceDetail />} />
         <Route path="/research" element={<ResearchAssistant />} />
+        <Route path="/reader" element={<PaperReader />} />
         <Route path="/reader/:paperId" element={<PaperReader />} />
         <Route path="/discovery" element={<ResearchDiscovery />} />
         <Route path="/knowledge-graph" element={<KnowledgeGraph />} />

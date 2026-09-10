@@ -7,6 +7,7 @@ import {
   generateLiteratureReview,
   generateAcademicWriting,
   extractComponentsAction,
+  findResearchGapsAction,
 } from "../controllers/researchAIController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -19,5 +20,6 @@ router.post("/literature-review", protect, generateLiteratureReview);
 router.post("/compare", protect, comparePapers);
 router.post("/paper-writer", protect, generateAcademicWriting);
 router.post("/extract-components", protect, extractComponentsAction);
+router.post("/gap-finder", protect, findResearchGapsAction);
 
 export default router;

@@ -7,8 +7,12 @@ import {
   Compass,
   Database,
   Quote,
+  Target,
+  BrainCircuit,
+  BookOpen,
+  CheckCircle2,
 } from "lucide-react";
-import HeroPreview from "./HeroPreview";
+import HeroPreview from "./Heropreview";
 
 export default function Hero() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -16,12 +20,13 @@ export default function Hero() {
   return (
     <section className="relative overflow-hidden pt-8 pb-16 lg:pt-14 lg:pb-24">
       {/* SaaS mesh gradient background */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[550px] pointer-events-none -z-10">
-        <div className="absolute -top-24 left-1/4 h-80 w-80 rounded-full bg-violet-400/15 blur-[100px]" />
-        <div className="absolute top-12 right-1/4 h-80 w-80 rounded-full bg-fuchsia-400/15 blur-[100px]" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] pointer-events-none -z-10">
+        <div className="absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-violet-400/20 blur-[120px]" />
+        <div className="absolute top-12 right-1/4 h-96 w-96 rounded-full bg-fuchsia-400/20 blur-[120px]" />
+        <div className="absolute top-36 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-amber-400/10 blur-[100px]" />
       </div>
 
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid items-center gap-10 lg:grid-cols-12">
           
           {/* Left Column: Hero Text & Value Proposition */}
@@ -29,71 +34,75 @@ export default function Hero() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="lg:col-span-6 xl:col-span-7"
+            className="lg:col-span-6 xl:col-span-7 space-y-6"
           >
             {/* Pill Announcement Badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-violet-200/80 bg-white/90 px-3.5 py-1 text-xs font-semibold text-violet-800 shadow-xs backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-200/90 bg-white/95 px-4 py-1.5 text-xs font-bold text-violet-800 shadow-xs backdrop-blur-md">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-bold text-violet-700">AI-Powered</span>
+              <span className="bg-gradient-to-r from-violet-700 to-fuchsia-700 bg-clip-text text-transparent">Gemini 2.5 Active</span>
               <span className="text-slate-300">•</span>
-              <span>Academic Research Workspace</span>
+              <span className="text-slate-600 font-medium">Unified AI Research OS</span>
             </div>
 
             {/* Headline */}
-            <h1 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.12]">
-              Research smarter.{" "}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 leading-[1.12]">
+              Accelerate research.{" "}
               <br className="hidden sm:inline" />
               <span className="bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
-                Write with citations.
+                Find gaps & write with citations.
               </span>
             </h1>
 
             {/* Subhead - Short, clean, punchy */}
-            <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-xl leading-relaxed">
-              Discover papers across 200M+ sources, organize into smart workspaces, read with AI assistance, and generate publication-ready drafts.
+            <p className="text-base sm:text-lg text-slate-600 max-w-xl leading-relaxed font-normal">
+              The all-in-one AI platform for researchers. Discover 200M+ papers, pinpoint unaddressed research gaps, read with in-line AI assistance, and draft publication-ready surveys with IEEE & APA citations.
             </p>
 
             {/* Action Buttons */}
-            <div className="mt-7 flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 pt-2">
               <Link
                 to={user ? "/dashboard" : "/register"}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-md shadow-violet-500/25 hover:from-violet-700 hover:to-fuchsia-700 transition active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 px-6 py-3.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-violet-500/25 hover:from-violet-700 hover:to-fuchsia-700 transition active:scale-[0.98]"
               >
-                {user ? "Go to Dashboard" : "Get Started Free"}
+                {user ? "Go to Dashboard" : "Start Researching Free"}
                 <ArrowRight size={16} />
               </Link>
 
               <Link
-                to="/features/upload-organize"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs sm:text-sm font-semibold text-slate-700 shadow-xs hover:border-violet-300 hover:text-violet-700 transition"
+                to="/research?tool=gap_finder"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300/80 bg-amber-50/60 hover:bg-amber-100/80 px-4 py-3.5 text-xs sm:text-sm font-bold text-amber-900 shadow-xs transition active:scale-[0.98]"
               >
-                <Upload size={15} className="text-violet-600" />
-                Upload & Organize
+                <Target size={16} className="text-amber-600" />
+                <span>Research Gap Finder</span>
               </Link>
 
               <Link
                 to="/discovery"
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-3 text-xs sm:text-sm font-semibold text-slate-600 hover:text-violet-700 transition"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/50 px-4 py-3.5 text-xs sm:text-sm font-bold text-slate-700 hover:text-emerald-800 transition"
               >
-                <Compass size={15} className="text-emerald-600" />
-                Discover Papers
+                <Compass size={16} className="text-emerald-600" />
+                <span>Discover 200M+ Papers</span>
               </Link>
             </div>
 
-            {/* Minimal Metrics Row */}
-            <div className="mt-8 pt-6 border-t border-slate-200/60 flex flex-wrap items-center gap-6 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5 font-medium">
-                <Database size={14} className="text-emerald-600" />
-                200M+ Academic Papers
-              </span>
-              <span className="flex items-center gap-1.5 font-medium">
-                <Quote size={14} className="text-violet-600" />
-                IEEE & APA Citations
-              </span>
-              <span className="flex items-center gap-1.5 font-medium">
-                <Sparkles size={14} className="text-fuchsia-600" />
-                Gemini 2.5 Flash
-              </span>
+            {/* Minimal Capabilities Row */}
+            <div className="pt-6 border-t border-slate-200/70 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <Target size={15} className="text-amber-600 shrink-0" />
+                <span>Gap Detection</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-semibold">
+                <Database size={15} className="text-emerald-600 shrink-0" />
+                <span>200M+ Papers</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-semibold">
+                <Quote size={15} className="text-violet-600 shrink-0" />
+                <span>IEEE / APA Citations</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-semibold">
+                <BookOpen size={15} className="text-fuchsia-600 shrink-0" />
+                <span>AI Deep Reader</span>
+              </div>
             </div>
           </motion.div>
 

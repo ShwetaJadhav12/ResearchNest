@@ -226,3 +226,46 @@ export const deleteWorkspace = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// GET /api/workspaces/activities/recent
+export const getRecentUserActivities = async (req, res) => {
+  try {
+    const userWorkspaces = await Workspace.find({
+      $or: [
+        { createdBy: req.user.id },
+        { "members.user": req.user.id },
+      ],
+    }).select("_id");
+
+    const wsIds = userWorkspaces.map((w) => w._id);
+
+    const activities = await Activity.find({
+      $or: [
+        { workspace: { $in: wsIds } },
+        { user: req.user.id },
+      ],
+    })
+      .populate("user", "fullName email")
+      .populate("workspace", "name")
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    return res.status(200).json({
+      success: true,
+      activities: activities.map((act) => ({
+        id: act._id,
+        action: act.description,
+        time: act.createdAt,
+        type: act.type,
+        user: act.user?.fullName || "You",
+        workspaceName: act.workspace?.name,
+      })),
+    });
+  } catch (error) {
+    console.error("Get recent activities error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch activities",
+    });
+  }
+};

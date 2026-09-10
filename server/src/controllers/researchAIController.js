@@ -10,6 +10,7 @@ import {
   summarizePaper,
   generateAcademicPaperWithCitations,
   extractAcademicComponents,
+  detectResearchGaps,
 } from "../services/researchAIService.js";
 
 const paperFields =
@@ -273,6 +274,74 @@ export const extractComponentsAction = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to extract research components.",
+    });
+  }
+};
+
+// =========================================================================
+// RESEARCH GAP FINDER ACTION
+// =========================================================================
+export const findResearchGapsAction = async (req, res) => {
+  try {
+    const { paperIds = [], topic = "", domainFocus = "", gapType = "all", workspaceId } = req.body;
+
+    if (!Array.isArray(paperIds) || paperIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select at least one research paper to analyze gaps.",
+      });
+    }
+
+    const papers = await getUserAccessiblePapers(paperIds.slice(0, 8), req.user.id);
+    if (papers.length === 0) {
+      return res.status(404).json({ success: false, message: "Selected papers were not found." });
+    }
+
+    const result = await detectResearchGaps({
+      papers,
+      topic: topic.trim() || papers[0].topic || "Academic Research Field",
+      domainFocus: domainFocus.trim(),
+      gapType,
+    });
+
+    if (workspaceId) {
+      try {
+        await SavedResearch.create({
+          workspace: workspaceId,
+          user: req.user.id,
+          toolType: "gap_finder",
+          title: `Research Gaps on ${topic || papers[0].title}`,
+          targetSection: "Research Gap Analysis",
+          papers: papers.map((p) => p._id),
+          content: result,
+        });
+
+        await Activity.create({
+          workspace: workspaceId,
+          user: req.user.id,
+          type: "ai_generated",
+          description: `${req.user.fullName || "A researcher"} discovered ${result.gaps?.length || 0} research gaps across ${papers.length} papers`,
+        });
+      } catch (saveErr) {
+        console.warn("Saving research gaps failed:", saveErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+      sourcePapers: papers.map((p) => ({
+        id: p._id,
+        title: p.title || p.filename,
+        authors: p.authors,
+        year: p.year,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ Research gap analysis error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to analyze research gaps.",
     });
   }
 };

@@ -59,6 +59,7 @@ export const getPaperForReader = async (req, res) => {
         journal: paper.journal || "",
         year: paper.year,
         pdfUrl: paper.pdfUrl || "",
+        officialUrl: paper.officialUrl || "",
         hasPdfBinary: Boolean(paper.data && paper.data.length > 0),
         workspace: paper.workspace,
         createdAt: paper.createdAt,
@@ -84,6 +85,7 @@ export const streamPaperPdf = async (req, res) => {
     if (paper.data && paper.data.length > 0) {
       res.setHeader("Content-Disposition", `inline; filename="${paper.filename || "paper.pdf"}"`);
       res.setHeader("Content-Type", paper.contentType || "application/pdf");
+      res.setHeader("Cache-Control", "private, max-age=120");
       return res.send(paper.data);
     }
 

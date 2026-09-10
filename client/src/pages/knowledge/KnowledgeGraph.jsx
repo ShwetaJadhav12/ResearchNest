@@ -16,54 +16,52 @@ import {
   Users,
   Tag,
 } from "lucide-react";
-import axios from "axios";
-
-
+import api from "../../api/axios";
 
 export default function KnowledgeGraph() {
   const [papers, setPapers] = useState([]);
-const [workspaces, setWorkspaces] = useState([]);
+  const [workspaces, setWorkspaces] = useState([]);
 
-const [graphNodes, setGraphNodes] = useState([]);
-const [graphEdges, setGraphEdges] = useState([]);
+  const [graphNodes, setGraphNodes] = useState([]);
+  const [graphEdges, setGraphEdges] = useState([]);
 
-const [workspaceId, setWorkspaceId] = useState("");
-const [search, setSearch] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [search, setSearch] = useState("");
 
-const [selectedPaper, setSelectedPaper] = useState(null);
+  const [selectedPaper, setSelectedPaper] = useState(null);
 
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState("");
-const loadKnowledgeGraph = async () => {
-  try {
-    setLoading(true);
-    setError("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-    const url = workspaceId
-      ? `/api/knowledge-graph?workspaceId=${workspaceId}`
-      : "/api/knowledge-graph";
+  const loadKnowledgeGraph = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    const response = await axios.get(url);
+      const url = workspaceId
+        ? `/api/knowledge-graph?workspaceId=${workspaceId}`
+        : "/api/knowledge-graph";
 
-    const graph = response.data.graph;
+      const response = await api.get(url);
 
-    setGraphNodes(graph.nodes || []);
-    setGraphEdges(graph.edges || []);
+      const graph = response.data.graph;
 
-  } catch (error) {
-    console.error(
-      "Failed to load knowledge graph:",
-      error
-    );
+      setGraphNodes(graph.nodes || []);
+      setGraphEdges(graph.edges || []);
+    } catch (error) {
+      console.error(
+        "Failed to load knowledge graph:",
+        error
+      );
 
-    setError(
-      error.response?.data?.message ||
-        "Unable to load knowledge graph."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+      setError(
+        error.response?.data?.message ||
+          "Unable to load knowledge graph."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadKnowledgeGraph();
@@ -80,8 +78,8 @@ const loadKnowledgeGraph = async () => {
 
       const [papersResponse, workspaceResponse] =
         await Promise.all([
-          axios.get("/api/papers"),
-          axios.get("/api/workspaces"),
+          api.get("/api/papers"),
+          api.get("/api/workspaces"),
         ]);
 
       setPapers(

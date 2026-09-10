@@ -1,0 +1,78 @@
+export const SEED_PAPERS = [
+  {
+    _id: "seed-1",
+    title: "Attention Is All You Need",
+    authors: ["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones"],
+    year: 2017,
+    topic: "Transformers & LLMs",
+    citationCount: 128450,
+    journal: "NeurIPS 2017",
+    doi: "10.48550/arXiv.1706.03762",
+    abstract:
+      "We propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on an attention mechanism to draw global dependencies between input and output.",
+    source: "discovery",
+    pdfUrl: "https://arxiv.org/pdf/1706.03762.pdf",
+    officialUrl: "https://arxiv.org/abs/1706.03762",
+    hasPdfBinary: false,
+    tags: ["Self-Attention", "NLP", "Sequence Transduction"],
+    content:
+      "Abstract\nWe propose the Transformer, a model architecture eschewing recurrence and instead relying entirely on an attention mechanism.\n\nIntroduction\nThe dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder.\n\nMethodology\nThe Transformer uses stacked self-attention and point-wise, fully connected layers for both the encoder and decoder.\n\nResults\nOn the WMT 2014 English-to-German translation task, the Transformer outperforms the previously reported ensembles.\n\nConclusion\nWe presented the Transformer, the first sequence transduction model based entirely on attention.",
+  },
+  {
+    _id: "seed-2",
+    title: "Deep Residual Learning for Image Recognition",
+    authors: ["Kaiming He", "Xiangyu Zhang", "Shaoqing Ren", "Jian Sun"],
+    year: 2016,
+    topic: "Computer Vision",
+    citationCount: 194300,
+    journal: "CVPR 2016",
+    doi: "10.1109/CVPR.2016.90",
+    abstract:
+      "Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously.",
+    source: "upload",
+    pdfUrl: "https://arxiv.org/pdf/1512.03385.pdf",
+    officialUrl: "https://arxiv.org/abs/1512.03385",
+    hasPdfBinary: false,
+    tags: ["ResNet", "Skip Connections", "Deep Architecture"],
+    content:
+      "Abstract\nDeeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously.\n\nIntroduction\nDeep convolutional neural networks have led to a series of breakthroughs for image classification.\n\nMethodology\nWe explicitly reformulate the layers as learning residual functions with reference to the layer inputs, instead of learning unreferenced functions.\n\nResults\nWe provide comprehensive empirical evidence showing that these residual networks are easier to optimize.\n\nConclusion\nResidual connections make it possible to train substantially deeper networks.",
+  },
+  {
+    _id: "seed-3",
+    title: "Language Models are Few-Shot Learners",
+    authors: ["Tom B. Brown", "Benjamin Mann", "Nick Ryder", "Melanie Subbiah", "Jared Kaplan"],
+    year: 2020,
+    topic: "Generative AI",
+    citationCount: 42100,
+    journal: "NeurIPS 2020",
+    doi: "10.48550/arXiv.2005.14165",
+    abstract:
+      "We demonstrate that scaling up language models greatly improves task-agnostic, few-shot performance, sometimes even becoming competitive with prior state-of-the-art fine-tuning approaches.",
+    source: "discovery",
+    pdfUrl: "https://arxiv.org/pdf/2005.14165.pdf",
+    officialUrl: "https://arxiv.org/abs/2005.14165",
+    hasPdfBinary: false,
+    tags: ["GPT-3", "In-Context Learning", "Scaling Laws"],
+    content:
+      "Abstract\nWe demonstrate that scaling up language models greatly improves task-agnostic, few-shot performance.\n\nIntroduction\nRecent years have featured a trend towards pre-trained language representations.\n\nMethodology\nGPT-3 is an autoregressive language model with 175 billion parameters trained on a large corpus.\n\nResults\nGPT-3 achieves strong few-shot performance across many NLP benchmarks.\n\nConclusion\nScaling language models leads to substantial gains in few-shot learning.",
+  },
+  {
+    _id: "seed-4",
+    title: "Retrieval-Augmented Generation for Knowledge-Intensive NLP",
+    authors: ["Patrick Lewis", "Ethan Perez", "Aleksandra Piktus", "Fabio Petroni"],
+    year: 2020,
+    topic: "Information Retrieval",
+    citationCount: 14800,
+    journal: "NeurIPS 2020",
+    doi: "10.48550/arXiv.2005.11401",
+    abstract:
+      "Large pre-trained language models store factual knowledge in their parameters. We explore general-purpose fine-tuning recipes for retrieval-augmented generation (RAG).",
+    source: "upload",
+    pdfUrl: "https://arxiv.org/pdf/2005.11401.pdf",
+    officialUrl: "https://arxiv.org/abs/2005.11401",
+    hasPdfBinary: false,
+    tags: ["RAG", "Vector Search", "Dense Retrieval"],
+    content:
+      "Abstract\nWe explore general-purpose fine-tuning recipes for retrieval-augmented generation (RAG).\n\nIntroduction\nLarge pre-trained language models store factual knowledge in their parameters, but they have limited ability to access and precisely manipulate knowledge.\n\nMethodology\nRAG combines a pre-trained seq2seq model with a dense vector index of Wikipedia.\n\nResults\nRAG models achieve state-of-the-art results on several knowledge-intensive NLP tasks.\n\nConclusion\nRetrieval augmentation helps language models stay factual and up to date.",
+  },
+];
