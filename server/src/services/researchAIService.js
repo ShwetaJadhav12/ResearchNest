@@ -514,3 +514,81 @@ ${evidence}`;
 
   return parseJson(response.text?.trim() || "{}");
 };
+
+// =========================================================================
+// AI RESEARCH-TO-RESUME & CAREER IMPACT EXTRACTOR
+// Transforms research papers into Google XYZ / STAR resume bullets,
+// technical skill taxonomy, interview defense guides, and CV entries
+// =========================================================================
+export const generateResumeImpactFromPaper = async ({
+  papers,
+  roleTarget = "AI / ML Researcher & Engineer",
+  focus = "",
+}) => {
+  const ai = getAI();
+
+  const evidence = papers
+    .map((p, idx) => {
+      const excerpt = (p.content || p.abstract || "").slice(0, 5000);
+      return `[PAPER ${idx + 1}] Title: "${p.title || p.filename}" (${p.year || "Recent"})
+Authors: ${p.authors?.join(", ") || "Unknown"}
+Journal/Venue: ${p.journal || "N/A"}
+Abstract: ${p.abstract || "N/A"}
+Content Excerpt:
+${excerpt}`;
+    })
+    .join("\n\n---\n\n");
+
+  const prompt = `You are ResearchNest AI Career & Academic Portfolio Specialist, expert in converting advanced scientific research and engineering projects into high-impact, elite tech resume bullets (Google XYZ / STAR format), technical skill matrices, academic CV entries, and technical interview defense cheat sheets.
+
+Target Role / Career Persona: "${roleTarget}"
+Specific Focus / Objective: "${focus || "Comprehensive Career & Resume Impact"}"
+
+Analyze the provided research paper(s) and extract genuine, concrete, and highly impressive resume accomplishments, technical skills, and interview questions based strictly on the methodology, experiments, datasets, benchmarks, and results.
+
+Return ONLY a valid JSON object matching this schema (do NOT wrap in markdown fences or comments):
+{
+  "paperTitle": "${papers[0]?.title || "Research Paper"}",
+  "projectRole": "${roleTarget}",
+  "oneLineElevatorPitch": "A punchy, metric-oriented 1-sentence summary of this research achievement for resume headers or LinkedIn headline.",
+  "resumeBulletPoints": [
+    {
+      "category": "Architecture & Engineering / Algorithmic Innovation / Empirical Optimization / System Design",
+      "bullet": "Action-verb driven bullet using Google XYZ format: Accomplished [X] as measured by [Y], by doing [Z]. e.g. Engineered novel attention mechanism...",
+      "actionVerb": "Engineered / Designed / Formulated / Optimized / Scaled",
+      "metricsImpact": "Quantifiable or qualitative improvement benchmarked"
+    }
+  ],
+  "technicalSkillBadges": {
+    "coreMethodologies": ["Methodology or model technique"],
+    "frameworksAndTools": ["Framework or tool commonly used for this type of research, e.g. PyTorch, CUDA, HuggingFace"],
+    "datasetsAndBenchmarks": ["Benchmark dataset or evaluation suite used in paper"],
+    "evaluationMetrics": ["Metrics used to evaluate performance, e.g. BLEU, Accuracy, Latency, Loss"]
+  },
+  "interviewDefenseGuide": {
+    "problemStatement": "How to explain the core research problem in 30 seconds to an engineering manager or interviewer.",
+    "novelContribution": "What unique algorithmic or system design choice was made and why traditional baselines fail.",
+    "keyTradeoffs": "The engineering trade-offs analyzed (e.g. parameter count vs throughput, precision vs memory).",
+    "potentialFollowUps": [
+      "Tough technical question an interviewer would ask about this methodology?",
+      "Follow-up question on edge cases or scaling bottlenecks?"
+    ]
+  },
+  "academicCVEntry": {
+    "citation": "Author et al., 'Title', Conference/Venue, Year.",
+    "researchKeywords": ["Keyword 1", "Keyword 2", "Keyword 3"],
+    "grantImpactStatement": "A formal, high-level research contribution paragraph suitable for grant proposals or academic statements."
+  }
+}
+
+RESEARCH PAPERS:
+${evidence}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: prompt,
+  });
+
+  return parseJson(response.text?.trim() || "{}");
+};
+

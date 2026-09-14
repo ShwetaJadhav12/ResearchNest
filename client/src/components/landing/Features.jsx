@@ -108,10 +108,10 @@ export const CORE_FEATURES = [
     icon: Brain,
     badge: "Feature 06",
     tag: "Visual Intelligence",
-    title: "Knowledge Graph",
+    title: "Research Horizon & Hypothesis Matrix",
     path: "/knowledge-graph",
-    description: "Interactive conceptual graph visualizing interconnected papers, citation networks, co-authorship, and research topics.",
-    tags: ["Citation Networks", "Topic Graph", "Interactive Nodes"],
+    description: "Active innovation matrix comparing paper methodologies, scanning cross-paper contradictions, and formulating breakthrough AI research hypotheses.",
+    tags: ["Tech Matrix", "Contradiction Scanner", "AI Hypotheses"],
     theme: {
       bg: "from-sky-500/10 to-cyan-500/5",
       border: "hover:border-sky-400/80",

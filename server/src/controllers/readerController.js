@@ -2,7 +2,12 @@ import Paper from "../models/Paper.js";
 import Workspace from "../models/Workspace.js";
 import Annotation from "../models/Annotation.js";
 import Activity from "../models/Activity.js";
-import { executeReaderAIAction, chatWithPaper } from "../services/readerAIService.js";
+import {
+  executeReaderAIAction,
+  chatWithPaper,
+  executeDualMindDebate,
+  executeFormulaXRay,
+} from "../services/readerAIService.js";
 
 // Check if user has read permission to paper (owner OR workspace member)
 const verifyPaperAccess = async (paperId, userId) => {
@@ -45,12 +50,25 @@ export const getPaperForReader = async (req, res) => {
       $or: [{ user: req.user.id }, { isShared: true }],
     });
 
+    let displayTitle = paper.title || paper.filename;
+    if (/^(arxiv:|page\s+\d+|doi:|http|https|proceedings|journal|volume|preprint|under review)/i.test(displayTitle.trim())) {
+      const lines = (paper.content || "")
+        .split(/\n+/)
+        .map((l) => l.trim())
+        .filter((l) => l && !/^(arxiv:|page\s+\d+|doi:|http|https|proceedings|journal|volume|preprint|under review)/i.test(l));
+      if (lines.length > 0 && lines[0].length <= 200) {
+        displayTitle = lines[0];
+      } else if (paper.filename) {
+        displayTitle = paper.filename.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").trim();
+      }
+    }
+
     return res.status(200).json({
       success: true,
       paper: {
         _id: paper._id,
         filename: paper.filename,
-        title: paper.title || paper.filename,
+        title: displayTitle,
         authors: paper.authors || [],
         abstract: paper.abstract || "",
         content: paper.content || "",
@@ -319,3 +337,54 @@ export const updateAnnotation = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// POST /api/reader/:paperId/dual-mind-debate
+export const handleDualMindDebate = async (req, res) => {
+  try {
+    const { paperId } = req.params;
+    const { selectedText = "", sectionTitle = "" } = req.body;
+
+    const paper = await verifyPaperAccess(paperId, req.user.id);
+    if (!paper) {
+      return res.status(404).json({ success: false, message: "Paper not found" });
+    }
+
+    const debate = await executeDualMindDebate({ paper, selectedText, sectionTitle });
+
+    return res.status(200).json({
+      success: true,
+      debate,
+    });
+  } catch (error) {
+    console.error("Dual mind debate error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/reader/:paperId/formula-xray
+export const handleFormulaXRay = async (req, res) => {
+  try {
+    const { paperId } = req.params;
+    const { formulaText = "" } = req.body;
+
+    if (!formulaText.trim()) {
+      return res.status(400).json({ success: false, message: "Formula text is required." });
+    }
+
+    const paper = await verifyPaperAccess(paperId, req.user.id);
+    if (!paper) {
+      return res.status(404).json({ success: false, message: "Paper not found" });
+    }
+
+    const xray = await executeFormulaXRay({ paper, formulaText });
+
+    return res.status(200).json({
+      success: true,
+      xray,
+    });
+  } catch (error) {
+    console.error("Formula X-Ray error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+

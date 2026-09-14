@@ -150,26 +150,61 @@ const extractTextFromPdf = async (buffer) => {
   }
 };
 
+const isHeaderJunk = (line) => {
+  if (!line || line.length < 3) return true;
+  const l = line.toLowerCase();
+  if (/^page\s+\d+/i.test(l) || /^arxiv:/i.test(l) || /^doi:/i.test(l)) return true;
+  if (/^(http|https):\/\//i.test(l)) return true;
+  if (/^(proceedings|journal|volume|vol\.|issn|isbn|ieee|acm|springer|elsevier|nature|biorxiv|medrxiv)\b/i.test(l)) return true;
+  if (/^(preprint|under review|draft|working paper|technical report)\b/i.test(l)) return true;
+  if (/^\d{1,4}(\/\d{1,4})?$/.test(l)) return true;
+  if (/^copyright\s+/i.test(l) || /^all rights reserved/i.test(l)) return true;
+  return false;
+};
+
 const inferTitle = (text, filename) => {
+  let cleanFilename = filename
+    ? filename.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").trim()
+    : "";
+
   const lines = text
     .split(/\n+/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   if (lines.length === 0) {
-    return filename;
+    return cleanFilename || filename;
   }
 
-  const first = lines[0];
-
-  if (
-    first.length <= 120 &&
-    first.split(" ").length <= 15
-  ) {
-    return first;
+  const candidates = [];
+  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+    const line = lines[i];
+    if (/^(abstract|1\.?\s*introduction|background)\b/i.test(line)) break;
+    if (isHeaderJunk(line)) continue;
+    const words = line.split(/\s+/);
+    if (words.length >= 2 && words.length <= 25 && line.length <= 200) {
+      candidates.push(line);
+    }
   }
 
-  return filename;
+  if (candidates.length > 0) {
+    let title = candidates[0];
+    if (
+      candidates.length > 1 &&
+      !/^(by|author|abstract|university|department|email|gmail|com)\b/i.test(candidates[1]) &&
+      !candidates[1].includes("@") &&
+      candidates[0].length + candidates[1].length < 150
+    ) {
+      title += " " + candidates[1];
+    }
+    return title;
+  }
+
+  if (cleanFilename && cleanFilename.length > 3 && !/^\d+$/.test(cleanFilename)) {
+    return cleanFilename;
+  }
+
+  return lines[0] || filename;
 };
 
 const inferAuthors = (text) => {

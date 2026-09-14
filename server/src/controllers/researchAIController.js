@@ -11,6 +11,7 @@ import {
   generateAcademicPaperWithCitations,
   extractAcademicComponents,
   detectResearchGaps,
+  generateResumeImpactFromPaper,
 } from "../services/researchAIService.js";
 
 const paperFields =
@@ -345,3 +346,73 @@ export const findResearchGapsAction = async (req, res) => {
     });
   }
 };
+
+export const generateResumeImpactAction = async (req, res) => {
+  try {
+    const { paperId, paperIds, roleTarget, focus, workspaceId } = req.body;
+    const targetIds = paperIds?.length ? paperIds : paperId ? [paperId] : [];
+
+    if (!targetIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one paper ID is required.",
+      });
+    }
+
+    const papers = await getUserAccessiblePapers(targetIds, req.user.id);
+    if (!papers.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No accessible papers found.",
+      });
+    }
+
+    const result = await generateResumeImpactFromPaper({
+      papers,
+      roleTarget: roleTarget?.trim() || "AI & Machine Learning Engineer",
+      focus: focus?.trim() || "",
+    });
+
+    if (workspaceId || papers[0]?.workspace) {
+      try {
+        const wsId = workspaceId || papers[0].workspace;
+        await SavedResearch.create({
+          workspace: wsId,
+          user: req.user.id,
+          toolType: "resume_impact",
+          title: `Resume & CV Impact: ${papers[0].title || papers[0].filename}`,
+          targetSection: "Resume & Career Impact Dossier",
+          papers: papers.map((p) => p._id),
+          content: result,
+        });
+
+        await Activity.create({
+          workspace: wsId,
+          user: req.user.id,
+          type: "ai_generated",
+          description: `${req.user.fullName || "A researcher"} generated Career & Resume Impact Dossier for "${papers[0].title || papers[0].filename}"`,
+        });
+      } catch (saveErr) {
+        console.warn("Saving resume impact failed:", saveErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+      sourcePapers: papers.map((p) => ({
+        id: p._id,
+        title: p.title || p.filename,
+        authors: p.authors,
+        year: p.year,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ Resume impact generation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to generate resume impact analysis.",
+    });
+  }
+};
+

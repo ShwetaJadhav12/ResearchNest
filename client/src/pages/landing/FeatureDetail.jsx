@@ -36,7 +36,7 @@ const featureContent = {
   },
 
   "knowledge-graph": {
-    title: "Knowledge Graph",
+    title: "Research Horizon & Hypothesis Matrix",
     eyebrow: "Connect ideas",
     summary:
       "Discover relationships between papers, topics, authors and research concepts.",

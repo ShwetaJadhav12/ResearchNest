@@ -8,6 +8,7 @@ import {
   generateAcademicWriting,
   extractComponentsAction,
   findResearchGapsAction,
+  generateResumeImpactAction,
 } from "../controllers/researchAIController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -21,5 +22,6 @@ router.post("/compare", protect, comparePapers);
 router.post("/paper-writer", protect, generateAcademicWriting);
 router.post("/extract-components", protect, extractComponentsAction);
 router.post("/gap-finder", protect, findResearchGapsAction);
+router.post("/resume-impact", protect, generateResumeImpactAction);
 
 export default router;

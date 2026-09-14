@@ -25,51 +25,13 @@ import Footer from "../../components/landing/Footer";
 import Features from "../../components/landing/Features";
 import api from "../../api/axios";
 import toast from "react-hot-toast";
-import { SEED_PAPERS } from "../../data/seedPapers";
-
-const SEED_ACTIVITIES = [
-  {
-    id: "act-1",
-    action: "Uploaded Attention Is All You Need.pdf",
-    time: "10 minutes ago",
-    type: "upload",
-    user: "Shweta (You)",
-  },
-  {
-    id: "act-2",
-    action: "AI generated research summary on Transformer Architectures",
-    time: "1 hour ago",
-    type: "ai",
-    user: "Gemini 2.5 Flash",
-  },
-  {
-    id: "act-3",
-    action: "Highlighted 4 methodology sentences in ResNet study",
-    time: "3 hours ago",
-    type: "reader",
-    user: "Shweta (You)",
-  },
-  {
-    id: "act-4",
-    action: "Synthesized IEEE literature review with 6 citations",
-    time: "Yesterday",
-    type: "writer",
-    user: "AI Assistant",
-  },
-  {
-    id: "act-5",
-    action: "Invited Dr. Robert Chen as Editor to 'Autonomous Agents' workspace",
-    time: "2 days ago",
-    type: "team",
-    user: "Shweta (You)",
-  },
-];
 
 export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const [papers, setPapers] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -94,11 +56,13 @@ export default function Dashboard() {
     Promise.all([
       api.get("/api/papers").catch(() => ({ data: { papers: [] } })),
       api.get("/api/workspaces").catch(() => ({ data: { workspaces: [] } })),
+      api.get("/api/workspaces/activities/recent").catch(() => ({ data: { activities: [] } })),
     ])
-      .then(([papersRes, wsRes]) => {
+      .then(([papersRes, wsRes, actRes]) => {
         const livePapers = papersRes.data?.papers || [];
         setPapers(livePapers);
         setWorkspaces(wsRes.data?.workspaces || []);
+        setActivities(actRes.data?.activities || []);
       })
       .catch((err) => {
         setError(err.response?.data?.message || "Unable to load dashboard data.");
@@ -110,13 +74,8 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  // Display papers: combine live papers with seed papers if library is small
-  const displayPapers = useMemo(() => {
-    if (papers.length > 0) {
-      return papers;
-    }
-    return SEED_PAPERS;
-  }, [papers]);
+  // Display papers: strictly user's real uploaded papers
+  const displayPapers = papers;
 
   // Unique topics for pills
   const availableTopics = useMemo(() => {
@@ -136,7 +95,7 @@ export default function Dashboard() {
         p.topic === selectedTopic ||
         p.folder === selectedTopic;
       const title = (p.title || p.filename || "").toLowerCase();
-      const authors = (p.authors || []).join(" ").toLowerCase();
+      const authors = (Array.isArray(p.authors) ? p.authors.join(" ") : p.authors || "").toLowerCase();
       const topic = (p.topic || p.folder || "").toLowerCase();
       const query = searchQuery.toLowerCase().trim();
       const matchQuery = !query || title.includes(query) || authors.includes(query) || topic.includes(query);
@@ -191,28 +150,45 @@ export default function Dashboard() {
   };
 
   const copyCitation = (paper) => {
-    const authorsStr = (paper.authors || []).slice(0, 3).join(", ") + ((paper.authors?.length || 0) > 3 ? " et al." : "");
+    const authorsStr = (Array.isArray(paper.authors) ? paper.authors.slice(0, 3).join(", ") : paper.authors || "Unknown Authors") +
+      ((Array.isArray(paper.authors) && paper.authors.length > 3) ? " et al." : "");
     const citation = `${authorsStr}, "${paper.title || paper.filename}," ${paper.journal || "ResearchNest Repository"}, ${paper.year || new Date().getFullYear()}.`;
     navigator.clipboard.writeText(citation);
     toast.success("IEEE Citation copied to clipboard!");
   };
 
-  const handleQuickAsk = (promptText) => {
+  const handleQuickAsk = async (promptText) => {
+    if (!papers.length) {
+      toast.error("Upload at least one paper to your library to query with Gemini Copilot.");
+      return;
+    }
+
     setAiPrompt(promptText);
     setAiThinking(true);
-    setTimeout(() => {
-      setAiThinking(false);
+    setAiResponse(null);
+
+    try {
+      const targetIds = papers.slice(0, 5).map((p) => p._id);
+      const { data } = await api.post("/api/ai/ask-across", {
+        paperIds: targetIds,
+        question: promptText,
+      });
+
       setAiResponse({
         query: promptText,
-        answer: `Based on the papers in your research library (including ${displayPapers[0]?.title || "Attention Is All You Need"}): Key breakthroughs center on removing recurrent computational bottlenecks through self-attention, enabling high degree of parallelization and state-of-the-art sequence modeling across downstream tasks.`,
-        sources: [displayPapers[0]?.title || "Attention Is All You Need"],
+        answer: data.result?.answer || "Synthesized answer from your library.",
+        sources: data.result?.sources?.map((s) => s.title) || [papers[0].title || papers[0].filename],
       });
-    }, 1200);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "AI synthesis failed");
+    } finally {
+      setAiThinking(false);
+    }
   };
 
-  const totalPaperCount = papers.length > 0 ? papers.length : 4;
-  const totalWorkspaceCount = workspaces.length > 0 ? workspaces.length : 2;
-  const totalTopicCount = availableTopics.length - 1 || 3;
+  const totalPaperCount = papers.length;
+  const totalWorkspaceCount = workspaces.length;
+  const totalTopicCount = Math.max(0, availableTopics.length - 1);
 
   const activityMeta = {
     upload: { icon: Upload, tint: "bg-violet-100 text-violet-700" },
@@ -305,10 +281,10 @@ export default function Dashboard() {
               {[
                 { to: "/features/upload-organize", icon: FileText, label: "Upload & Organize", color: "text-violet-200" },
                 { to: "/research", icon: Sparkles, label: "AI Assistant", color: "text-fuchsia-300" },
-                { to: "/reader/seed-1", icon: BookOpen, label: "AI Reader", color: "text-amber-300" },
+                { to: "/reader", icon: BookOpen, label: "AI Reader", color: "text-amber-300" },
                 { to: "/discovery", icon: Compass, label: "Discovery", color: "text-emerald-300" },
                 { to: "/projects", icon: Users, label: "Workspaces", color: "text-indigo-200" },
-                { to: "/knowledge-graph", icon: Brain, label: "Knowledge Graph", color: "text-sky-300" },
+                { to: "/knowledge-graph", icon: Brain, label: "Research Horizon Matrix", color: "text-sky-300" },
               ].map((item) => (
                 <Link
                   key={item.to}
@@ -400,59 +376,21 @@ export default function Dashboard() {
                 </Link>
               ))
             ) : (
-              <>
-                <Link
-                  to="/projects"
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-violet-300 hover:shadow-xl"
-                >
-                  <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-violet-100/70 blur-2xl" />
-                  <div className="relative">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="rounded-full bg-violet-50 px-3 py-1 font-bold text-violet-700">LLM Reasoning</span>
-                      <span className="rounded-lg bg-slate-50 px-2 py-0.5 font-semibold text-slate-400">4 papers</span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-bold text-slate-900 group-hover:text-violet-700">Transformer Architectures & Reasoning</h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-500">
-                      Surveying modern self-attention, in-context learning, and retrieval-augmented generation.
-                    </p>
-                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
-                      <span className="inline-flex items-center gap-1 font-semibold text-slate-400"><Users size={13} className="text-violet-500" /> 2 collaborators</span>
-                      <span className="inline-flex items-center gap-1 font-bold text-violet-600">Open lab <ArrowRight size={13} /></span>
-                    </div>
-                  </div>
-                </Link>
-                <Link
-                  to="/projects"
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-emerald-300 hover:shadow-xl"
-                >
-                  <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-100/70 blur-2xl" />
-                  <div className="relative">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 font-bold text-emerald-700">Computer Vision</span>
-                      <span className="rounded-lg bg-slate-50 px-2 py-0.5 font-semibold text-slate-400">3 papers</span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-bold text-slate-900 group-hover:text-emerald-700">Visual Representation & Deep ResNets</h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-500">
-                      Residual learning frameworks, vision transformers, and multimodal feature extraction.
-                    </p>
-                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
-                      <span className="inline-flex items-center gap-1 font-semibold text-slate-400"><Users size={13} className="text-emerald-500" /> 1 collaborator</span>
-                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600">Open lab <ArrowRight size={13} /></span>
-                    </div>
-                  </div>
-                </Link>
+              <div className="col-span-full rounded-[1.75rem] border-2 border-dashed border-violet-200 bg-white/70 p-10 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 mb-3 shadow-xs">
+                  <FolderKanban size={26} />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">No Research Workspaces Yet</h3>
+                <p className="mx-auto mt-1 max-w-md text-xs text-slate-500 leading-relaxed">
+                  Create your first collaborative lab workspace to organize research papers, shared notes, and team milestones.
+                </p>
                 <button
-                  type="button"
                   onClick={() => setShowNewWorkspaceModal(true)}
-                  className="flex min-h-[210px] flex-col items-center justify-center rounded-[1.75rem] border-2 border-dashed border-violet-200 bg-white/60 p-6 text-center transition hover:border-violet-400 hover:bg-violet-50"
+                  className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-violet-500/20 hover:bg-violet-700 transition"
                 >
-                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
-                    <Plus size={22} />
-                  </div>
-                  <h3 className="text-sm font-bold text-violet-900">Create a new workspace</h3>
-                  <p className="mt-1 max-w-[220px] text-xs text-violet-600">Group papers, notes, and teammates into a focused lab.</p>
+                  <Plus size={15} /> Create First Workspace
                 </button>
-              </>
+              </div>
             )}
           </div>
         </section>
@@ -561,6 +499,34 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))
+                ) : papers.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/30 p-12 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 mb-3">
+                      <FileText size={22} />
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">No Research Papers in Your Library</p>
+                    <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
+                      Upload a research PDF or search through 200M+ open-access papers on Discovery.
+                    </p>
+                    <div className="mt-5 flex items-center justify-center gap-3">
+                      <label className="cursor-pointer inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-violet-700 transition">
+                        <Upload size={14} /> Upload PDF
+                        <input
+                          type="file"
+                          accept=".pdf"
+                          disabled={uploading}
+                          onChange={handleDirectUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <Link
+                        to="/discovery"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Compass size={14} /> Discover Papers
+                      </Link>
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 p-12 text-center">
                     <p className="text-sm font-semibold text-slate-600">No papers matched your search.</p>
@@ -650,25 +616,32 @@ export default function Dashboard() {
                 <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Live</span>
               </div>
               <div className="mt-4 space-y-4">
-                {SEED_ACTIVITIES.map((act) => {
-                  const meta = activityMeta[act.type] || activityMeta.ai;
-                  const Icon = meta.icon;
-                  return (
-                    <div key={act.id} className="flex items-start gap-3 text-xs">
-                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${meta.tint}`}>
-                        <Icon size={14} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold leading-tight text-slate-800">{act.action}</p>
-                        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                          <span>{act.user}</span>
-                          <span>•</span>
-                          <span>{act.time}</span>
+                {activities.length > 0 ? (
+                  activities.map((act) => {
+                    const meta = activityMeta[act.type] || activityMeta.ai;
+                    const Icon = meta.icon;
+                    return (
+                      <div key={act.id} className="flex items-start gap-3 text-xs">
+                        <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${meta.tint}`}>
+                          <Icon size={14} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold leading-tight text-slate-800">{act.action}</p>
+                          <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                            <span>{act.user}</span>
+                            <span>•</span>
+                            <span>{act.time ? new Date(act.time).toLocaleDateString() : "Recent"}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+                    <p className="text-xs font-medium text-slate-500">No activity recorded yet.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Upload papers or create workspaces to build your audit timeline.</p>
+                  </div>
+                )}
               </div>
               <Link
                 to="/projects"
