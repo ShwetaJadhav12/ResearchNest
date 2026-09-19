@@ -5,6 +5,8 @@ import Activity from "../models/Activity.js";
 import Discussion from "../models/Discussion.js";
 import Annotation from "../models/Annotation.js";
 import SavedResearch from "../models/SavedResearch.js";
+import Notification from "../models/Notification.js";
+import { sendCollaboratorInviteEmail } from "../utils/emailService.js";
 
 // Helper to check user membership and role
 const getWorkspaceAndRole = async (workspaceId, userId) => {
@@ -27,6 +29,53 @@ const getWorkspaceAndRole = async (workspaceId, userId) => {
   }
 
   return { workspace: null, role: null };
+};
+
+// Helper function to notify workspace members
+const notifyWorkspaceMembers = async (req, workspace, senderId, notificationData) => {
+  try {
+    const io = req.app.get("io");
+
+    // Gather all member IDs except sender
+    const memberUserIds = new Set();
+    if (workspace.createdBy?._id || workspace.createdBy) {
+      memberUserIds.add(String(workspace.createdBy._id || workspace.createdBy));
+    }
+    (workspace.members || []).forEach((m) => {
+      const id = m.user?._id || m.user;
+      if (id) memberUserIds.add(String(id));
+    });
+
+    memberUserIds.delete(String(senderId));
+
+    const notificationsToCreate = Array.from(memberUserIds).map((recipientId) => ({
+      recipient: recipientId,
+      sender: senderId,
+      workspace: workspace._id,
+      type: notificationData.type,
+      title: notificationData.title,
+      message: notificationData.message,
+      link: notificationData.link || `/projects/${workspace._id}`,
+    }));
+
+    if (notificationsToCreate.length > 0) {
+      const created = await Notification.insertMany(notificationsToCreate);
+      
+      if (io) {
+        // Emit socket notification to each member's room or workspace room
+        created.forEach((notif) => {
+          io.to(`user-${notif.recipient}`).emit("notification", notif);
+        });
+        io.to(`workspace-${workspace._id}`).emit("workspace-activity", {
+          workspaceId: workspace._id,
+          type: notificationData.type,
+          message: notificationData.message,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Notify workspace members error:", err);
+  }
 };
 
 // GET /api/collaboration/:workspaceId/hub
@@ -139,6 +188,17 @@ export const inviteMember = async (req, res) => {
       });
     }
 
+    const inviterName = req.user.fullName || req.user.name || "A team member";
+
+    // Trigger Email Notification to collaborator
+    sendCollaboratorInviteEmail({
+      recipientEmail: normalizedEmail,
+      inviterName,
+      workspaceName: workspace.name,
+      role,
+      workspaceId: workspace._id,
+    });
+
     // Check if registered user exists in system
     const targetUser = await User.findOne({ email: normalizedEmail });
 
@@ -161,13 +221,36 @@ export const inviteMember = async (req, res) => {
         metadata: { invitedUserId: targetUser._id, role },
       });
 
+      // Create Notification for target user
+      const notif = await Notification.create({
+        recipient: targetUser._id,
+        sender: req.user.id,
+        workspace: workspace._id,
+        type: "collaborator_invited",
+        title: "Workspace Invitation",
+        message: `${inviterName} added you to workspace "${workspace.name}" as an ${role}.`,
+        link: `/projects/${workspace._id}`,
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`user-${targetUser._id}`).emit("notification", notif);
+      }
+
+      // Notify existing workspace members as well
+      await notifyWorkspaceMembers(req, workspace, req.user.id, {
+        type: "member_joined",
+        title: "New Team Member",
+        message: `${targetUser.fullName || targetUser.email} was added to "${workspace.name}" as ${role}.`,
+      });
+
       const updatedWorkspace = await Workspace.findById(workspaceId)
         .populate("createdBy", "fullName email avatar")
         .populate("members.user", "fullName email avatar");
 
       return res.status(200).json({
         success: true,
-        message: `${targetUser.fullName || targetUser.email} was added to the workspace as an ${role}.`,
+        message: `${targetUser.fullName || targetUser.email} was added to the workspace and notified via email.`,
         members: updatedWorkspace.members,
       });
     }
@@ -190,7 +273,7 @@ export const inviteMember = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Invitation recorded for ${normalizedEmail}. When they log in, they will have ${role} access.`,
+      message: `Invitation email sent to ${normalizedEmail}. When they register, they will have ${role} access.`,
       invitedEmails: workspace.invitedEmails,
     });
   } catch (error) {
@@ -238,6 +321,12 @@ export const updateMemberRole = async (req, res) => {
       type: "member_role_changed",
       description: `Updated role for member to ${role}`,
       metadata: { targetUserId: memberUserId, newRole: role },
+    });
+
+    await notifyWorkspaceMembers(req, workspace, req.user.id, {
+      type: "role_updated",
+      title: "Member Role Updated",
+      message: `${req.user.fullName || "An admin"} updated a member's role to ${role} in "${workspace.name}".`,
     });
 
     const updatedWorkspace = await Workspace.findById(workspaceId)
@@ -327,6 +416,12 @@ export const postDiscussionMessage = async (req, res) => {
       metadata: { discussionId: discussion._id },
     });
 
+    await notifyWorkspaceMembers(req, workspace, req.user.id, {
+      type: "discussion_posted",
+      title: `Discussion in ${workspace.name}`,
+      message: `${req.user.fullName || "A researcher"}: "${message.slice(0, 80)}"`,
+    });
+
     return res.status(201).json({
       success: true,
       discussion,
@@ -361,6 +456,12 @@ export const updateWorkspaceProgress = async (req, res) => {
       user: req.user.id,
       type: "progress_updated",
       description: `${req.user.fullName || "A researcher"} updated the project research status to ${status || "active"}`,
+    });
+
+    await notifyWorkspaceMembers(req, workspace, req.user.id, {
+      type: "progress_updated",
+      title: "Workspace Progress Updated",
+      message: `${req.user.fullName || "A researcher"} updated research status to ${status || "active"} in "${workspace.name}".`,
     });
 
     return res.status(200).json({

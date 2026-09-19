@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   BookOpen,
   FileText,
@@ -19,15 +19,20 @@ import {
   Copy,
   Clock,
   X,
+  Target,
+  Play,
 } from "lucide-react";
 import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/landing/Footer";
 import Features from "../../components/landing/Features";
+import DemoModal from "../../components/common/DemoModal";
+import AuthPromptModal from "../../components/common/AuthPromptModal";
 import api from "../../api/axios";
 import toast from "react-hot-toast";
 
 export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const navigate = useNavigate();
 
   const [papers, setPapers] = useState([]);
   const [workspaces, setWorkspaces] = useState([]);
@@ -38,6 +43,7 @@ export default function Dashboard() {
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchTarget, setSearchTarget] = useState("library"); // "library", "global", "ai"
   const [selectedTopic, setSelectedTopic] = useState("All");
 
   // AI Copilot prompt box
@@ -149,17 +155,50 @@ export default function Dashboard() {
     }
   };
 
-  const copyCitation = (paper) => {
-    const authorsStr = (Array.isArray(paper.authors) ? paper.authors.slice(0, 3).join(", ") : paper.authors || "Unknown Authors") +
-      ((Array.isArray(paper.authors) && paper.authors.length > 3) ? " et al." : "");
-    const citation = `${authorsStr}, "${paper.title || paper.filename}," ${paper.journal || "ResearchNest Repository"}, ${paper.year || new Date().getFullYear()}.`;
-    navigator.clipboard.writeText(citation);
-    toast.success("IEEE Citation copied to clipboard!");
+  const copyCitation = (paper, format = "IEEE") => {
+    let authorsStr = "Unknown Authors";
+    if (Array.isArray(paper.authors) && paper.authors.length > 0) {
+      authorsStr = paper.authors.slice(0, 3).join(", ") + (paper.authors.length > 3 ? " et al." : "");
+    } else if (typeof paper.authors === "string" && paper.authors.trim()) {
+      authorsStr = paper.authors.trim();
+    }
+
+    const titleStr = paper.title || paper.filename || "Untitled Research Paper";
+    const journalStr = paper.journal || "ResearchNest Repository";
+    const yearStr = paper.year || new Date().getFullYear();
+
+    let citation = `${authorsStr}, "${titleStr}," ${journalStr}, ${yearStr}.`;
+
+    if (format === "APA") {
+      citation = `${authorsStr} (${yearStr}). ${titleStr}. ${journalStr}.`;
+    } else if (format === "BibTeX") {
+      const key = (Array.isArray(paper.authors) && paper.authors[0] ? paper.authors[0].split(" ").pop() : "paper") + yearStr;
+      citation = `@article{${key},\n  title={${titleStr}},\n  author={${Array.isArray(paper.authors) ? paper.authors.join(" and ") : authorsStr}},\n  journal={${journalStr}},\n  year={${yearStr}}\n}`;
+    }
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(citation);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = citation;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      toast.success(`${format} Citation copied to clipboard!`);
+    } catch (err) {
+      console.error("Copy citation error:", err);
+      toast.error("Failed to copy. Standard IEEE: " + citation.slice(0, 40) + "...");
+    }
   };
 
   const handleQuickAsk = async (promptText) => {
     if (!papers.length) {
-      toast.error("Upload at least one paper to your library to query with Gemini Copilot.");
+      toast.error("Upload at least one paper to your library to query with AI Copilot.");
       return;
     }
 
@@ -186,6 +225,24 @@ export default function Dashboard() {
     }
   };
 
+  const handleHeroSearchSubmit = (e) => {
+    e?.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      toast.error("Please enter a paper title, topic, or question.");
+      return;
+    }
+
+    if (searchTarget === "global") {
+      navigate(`/discovery?q=${encodeURIComponent(query)}`);
+    } else if (searchTarget === "ai") {
+      handleQuickAsk(query);
+    } else {
+      const el = document.getElementById("library-section");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   const totalPaperCount = papers.length;
   const totalWorkspaceCount = workspaces.length;
   const totalTopicCount = Math.max(0, availableTopics.length - 1);
@@ -209,92 +266,83 @@ export default function Dashboard() {
       <Navbar />
 
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/20 bg-[radial-gradient(1200px_circle_at_0%_0%,rgba(167,139,250,0.35),transparent_45%),radial-gradient(900px_circle_at_100%_20%,rgba(244,114,182,0.22),transparent_40%),linear-gradient(145deg,#2e1065_0%,#4c1d95_42%,#1e1b4b_100%)] p-6 text-white shadow-[0_24px_80px_-28px_rgba(76,29,149,0.55)] sm:p-10">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2760%27 height=%2760%27 viewBox=%270 0 60 60%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cg fill=%27none%27 fill-rule=%27evenodd%27%3E%3Cg fill=%27%23ffffff%27 fill-opacity=%270.04%27%3E%3Ccircle cx=%2730%27 cy=%2730%27 r=%271.5%27/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-70" />
+        {/* =====================================================
+            HERO SECTION (Matching Landing Page Styling)
+        ====================================================== */}
+        {/* =====================================================
+            SIMPLE HERO SECTION
+        ====================================================== */}
+        <section className="relative overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 p-8 sm:p-10 text-white shadow-xl">
+          {/* Ambient soft background blur */}
+          <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-violet-600/20 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-fuchsia-600/20 blur-3xl pointer-events-none" />
 
-          <div className="relative z-10">
-            <div className="flex flex-wrap items-start justify-between gap-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/10 text-xl font-black text-white shadow-inner backdrop-blur-md">
-                  {user?.name ? user.name.charAt(0).toUpperCase() : "R"}
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-                      {user?.name ? `Welcome back, ${user.name}` : "Research Workspace"}
-                    </h1>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/40 bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
-                      Live
-                    </span>
-                  </div>
-                  <p className="mt-1 max-w-xl text-sm text-violet-100/85">
-                    Discover, read, annotate, and synthesize papers in one calm workspace.
-                  </p>
-                </div>
+          <div className="relative z-10 space-y-6">
+            {/* Clean Top Title & Subtitle telling what ResearchNest does */}
+            <div className="max-w-3xl space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/30 bg-violet-500/10 px-3.5 py-1 text-xs font-semibold text-violet-300 backdrop-blur-md">
+                <Sparkles size={13} className="text-violet-400" />
+                <span>ResearchNest • AI Research OS</span>
               </div>
 
-              <div className="flex items-center gap-2.5">
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-xs font-bold text-violet-800 shadow-lg shadow-violet-950/20 transition hover:-translate-y-0.5 hover:bg-violet-50">
-                  <Upload size={14} />
-                  <span>{uploading ? "Analyzing..." : "Upload PDF"}</span>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    disabled={uploading}
-                    onChange={handleDirectUpload}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={() => setShowNewWorkspaceModal(true)}
-                  className="inline-flex items-center gap-1.5 rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/20"
-                >
-                  <Plus size={14} />
-                  New Workspace
-                </button>
-              </div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+                {user?.name ? `Welcome back, ${user.name}` : "Your All-in-One AI Platform for Scientific Discovery"}
+              </h1>
+
+              <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal">
+                ResearchNest helps researchers discover 200M+ papers, pinpoint unaddressed research gaps, read with inline AI assistance, and draft publication-ready surveys with IEEE & APA citations.
+              </p>
             </div>
 
-            <div className="mt-8 max-w-3xl">
-              <div className="relative">
-                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-violet-200" />
+            {/* Primary Action Row */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-600/30 transition hover:bg-violet-700 active:scale-95">
+                <Upload size={15} />
+                <span>{uploading ? "Uploading Paper..." : "Upload Paper PDF"}</span>
                 <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by title, author, abstract, or topic..."
-                  className="w-full rounded-2xl border border-white/20 bg-white/12 py-4 pl-12 pr-12 text-sm text-white outline-none placeholder-violet-200/70 shadow-inner backdrop-blur-md transition focus:border-white/50 focus:bg-white/18"
+                  type="file"
+                  accept=".pdf"
+                  disabled={uploading}
+                  onChange={handleDirectUpload}
+                  className="hidden"
                 />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-violet-200 hover:text-white"
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
+              </label>
+
+              <button
+                onClick={() => setShowNewWorkspaceModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/20"
+              >
+                <Plus size={15} />
+                New Workspace
+              </button>
+
+              <Link
+                to="/discovery"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+              >
+                <Compass size={15} />
+                Search 200M+ Papers
+              </Link>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-2">
-              {[
-                { to: "/features/upload-organize", icon: FileText, label: "Upload & Organize", color: "text-violet-200" },
-                { to: "/research", icon: Sparkles, label: "AI Assistant", color: "text-fuchsia-300" },
-                { to: "/reader", icon: BookOpen, label: "AI Reader", color: "text-amber-300" },
-                { to: "/discovery", icon: Compass, label: "Discovery", color: "text-emerald-300" },
-                { to: "/projects", icon: Users, label: "Workspaces", color: "text-indigo-200" },
-                { to: "/knowledge-graph", icon: Brain, label: "Research Horizon Matrix", color: "text-sky-300" },
-              ].map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-md transition hover:border-white/30 hover:bg-white/20"
-                >
-                  <item.icon size={13} className={item.color} />
-                  {item.label}
-                </Link>
-              ))}
+            {/* Simple Summary Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10 text-xs text-slate-300">
+              <div className="flex items-center gap-2">
+                <FileText size={15} className="text-violet-400 shrink-0" />
+                <span><strong>{totalPaperCount}</strong> Saved Papers</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <FolderKanban size={15} className="text-fuchsia-400 shrink-0" />
+                <span><strong>{totalWorkspaceCount}</strong> Active Workspaces</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Target size={15} className="text-amber-400 shrink-0" />
+                <span>AI Gap Detection</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Quote size={15} className="text-emerald-400 shrink-0" />
+                <span>IEEE & APA Citations</span>
+              </div>
             </div>
           </div>
         </section>
@@ -404,7 +452,7 @@ export default function Dashboard() {
                     <h2 className="text-xl font-black tracking-tight text-slate-900">Research library</h2>
                     <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-700">{filteredPapers.length}</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">Open a paper to read the PDF, highlight, and ask Gemini about the methods.</p>
+                  <p className="mt-1 text-sm text-slate-500">Open a paper to read the PDF, highlight, and ask AI Assistant about the methods.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Link to="/discovery" className="inline-flex items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
@@ -552,7 +600,7 @@ export default function Dashboard() {
                   <Sparkles size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black">Gemini copilot</h3>
+                  <h3 className="text-sm font-black">AI Copilot</h3>
                   <p className="text-[11px] text-violet-100">Ask across your library</p>
                 </div>
               </div>
@@ -587,7 +635,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 font-bold text-violet-900">
                     <span className="inline-flex items-center gap-1">
                       <Sparkles size={12} className="text-violet-600" />
-                      Gemini synthesis
+                      AI synthesis
                     </span>
                     <button onClick={() => setAiResponse(null)} className="text-slate-400 hover:text-slate-600">
                       <X size={14} />

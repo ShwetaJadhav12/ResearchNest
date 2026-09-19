@@ -7,6 +7,9 @@ import knowledgeGraphRoutes from "./routes/knowledgeGraphRoutes.js";
 import readerRoutes from "./routes/readerRoutes.js";
 import discoveryRoutes from "./routes/discoveryRoutes.js";
 import collaborationRoutes from "./routes/collaborationRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import paperRoutes from "./routes/paperRoutes.js";
 
 const app = express();
 
@@ -33,13 +36,14 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use("/api/auth", (await import("./routes/authRoutes.js")).default);
-app.use("/api/papers", (await import("./routes/paperRoutes.js")).default);
+app.use("/api/auth", authRoutes);
+app.use("/api/papers", paperRoutes);
 app.use("/api/ai", researchAIRoutes);
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/reader", readerRoutes);
 app.use("/api/discovery", discoveryRoutes);
 app.use("/api/collaboration", collaborationRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/knowledge-graph", knowledgeGraphRoutes);
 
 export default app;

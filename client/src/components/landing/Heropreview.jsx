@@ -50,7 +50,7 @@ export default function HeroPreview() {
         <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/80 px-3 py-2 text-xs text-slate-400 shadow-inner">
           <div className="flex items-center gap-2">
             <Search size={14} className="text-slate-400" />
-            <span className="text-slate-600 font-medium">Search 200M+ papers or ask Gemini...</span>
+            <span className="text-slate-600 font-medium">Search 200M+ papers or ask AI...</span>
           </div>
           <kbd className="rounded bg-white border border-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 shadow-xs">
             ⌘K
@@ -98,7 +98,7 @@ export default function HeroPreview() {
           <div className="mt-3 rounded-xl border border-purple-200 bg-white p-3 shadow-sm">
             <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
               <Sparkles size={14} className="text-purple-600" />
-              Gemini 2.5 Flash • Key Innovation Dissected
+              AI Assistant • Key Innovation Dissected
             </div>
             <p className="mt-1 text-xs text-slate-600 leading-snug">
               Eliminates sequential \(O(n)\) recurrent bottlenecks, enabling massive parallelization during training across large corpora.

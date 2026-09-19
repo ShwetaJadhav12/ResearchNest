@@ -230,7 +230,7 @@ export default function ResearchDiscovery() {
 
             <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">
               Search millions of peer-reviewed articles across OpenAlex, Semantic Scholar, and arXiv.
-              Organize real citations, synthesize insights with Gemini, and add papers directly into your research projects.
+              Organize real citations, synthesize insights with AI, and add papers directly into your research projects.
             </p>
 
             {/* Search Input Bar */}
@@ -353,7 +353,7 @@ export default function ResearchDiscovery() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Gemini strategic intelligence synthesized from retrieved academic literature for "{activeQuery}".
+                    AI strategic intelligence synthesized from retrieved academic literature for "{activeQuery}".
                   </p>
                 </div>
               </div>

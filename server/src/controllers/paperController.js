@@ -2,7 +2,8 @@ import pdfParse from "pdf-parse";
 import Paper from "../models/Paper.js";
 import Workspace from "../models/Workspace.js";
 import Activity from "../models/Activity.js";
-import { classifyPaperTopic } from "../services/paperAIService.js";
+import Notification from "../models/Notification.js";
+import { extractPaperMetadataWithAI } from "../services/paperAIService.js";
 
 const stopWords = new Set([
   "about",
@@ -153,18 +154,25 @@ const extractTextFromPdf = async (buffer) => {
 const isHeaderJunk = (line) => {
   if (!line || line.length < 3) return true;
   const l = line.toLowerCase();
-  if (/^page\s+\d+/i.test(l) || /^arxiv:/i.test(l) || /^doi:/i.test(l)) return true;
-  if (/^(http|https):\/\//i.test(l)) return true;
-  if (/^(proceedings|journal|volume|vol\.|issn|isbn|ieee|acm|springer|elsevier|nature|biorxiv|medrxiv)\b/i.test(l)) return true;
-  if (/^(preprint|under review|draft|working paper|technical report)\b/i.test(l)) return true;
+  if (/^page\s+\d+/i.test(l) || /^arxiv[:\d\.]+/i.test(l) || /^doi:/i.test(l)) return true;
+  if (/^\[?cs\.[a-z\.-]+\]?/i.test(l) || /^\d{4}\.\d{4,5}/.test(l)) return true;
+  if (/^(http|https):\/\//i.test(l) || /www\./i.test(l)) return true;
+  if (/^(proceedings|journal|volume|vol\.|issn|isbn|ieee|acm|springer|elsevier|nature|biorxiv|medrxiv|neurips|icml|iclr|aaai|acl|cvpr|iccv|eccv)\b/i.test(l)) return true;
+  if (/^(preprint|under review|draft|working paper|technical report|research article|review article|accepted paper)\b/i.test(l)) return true;
   if (/^\d{1,4}(\/\d{1,4})?$/.test(l)) return true;
-  if (/^copyright\s+/i.test(l) || /^all rights reserved/i.test(l)) return true;
+  if (/^copyright\s+/i.test(l) || /^all rights reserved/i.test(l) || /^licensed under/i.test(l)) return true;
+  if (/^(department|university|faculty|school|institute|center|laboratory|inc\.|ltd\.|corp\.)\b/i.test(l)) return true;
+  if (l.includes("@") || /^\d+\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}/i.test(l)) return true;
   return false;
 };
 
 const inferTitle = (text, filename) => {
   let cleanFilename = filename
-    ? filename.replace(/\.pdf$/i, "").replace(/[-_]/g, " ").trim()
+    ? filename
+        .replace(/\.pdf$/i, "")
+        .replace(/[-_]/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .trim()
     : "";
 
   const lines = text
@@ -177,12 +185,12 @@ const inferTitle = (text, filename) => {
   }
 
   const candidates = [];
-  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
     const line = lines[i];
-    if (/^(abstract|1\.?\s*introduction|background)\b/i.test(line)) break;
+    if (/^(abstract|1\.?\s*introduction|background|keywords)\b/i.test(line)) break;
     if (isHeaderJunk(line)) continue;
     const words = line.split(/\s+/);
-    if (words.length >= 2 && words.length <= 25 && line.length <= 200) {
+    if (words.length >= 2 && words.length <= 25 && line.length <= 220) {
       candidates.push(line);
     }
   }
@@ -191,13 +199,14 @@ const inferTitle = (text, filename) => {
     let title = candidates[0];
     if (
       candidates.length > 1 &&
-      !/^(by|author|abstract|university|department|email|gmail|com)\b/i.test(candidates[1]) &&
+      !/^(by|author|abstract|university|department|email|gmail|com|keywords|table|figure)\b/i.test(candidates[1].toLowerCase()) &&
       !candidates[1].includes("@") &&
-      candidates[0].length + candidates[1].length < 150
+      !isHeaderJunk(candidates[1]) &&
+      candidates[0].length + candidates[1].length < 160
     ) {
       title += " " + candidates[1];
     }
-    return title;
+    return title.replace(/\s+/g, " ").trim();
   }
 
   if (cleanFilename && cleanFilename.length > 3 && !/^\d+$/.test(cleanFilename)) {
@@ -224,20 +233,14 @@ const inferAuthors = (text) => {
 
   if (
     candidates.length >= 1 &&
-    candidates.every(
-      (name) => name.split(" ").length <= 5
-    )
+    candidates.every((name) => name.split(" ").length <= 5)
   ) {
     return candidates;
   }
 
   const authorLine = lines
-    .slice(0, 6)
-    .find(
-      (line) =>
-        /by\s+/i.test(line) ||
-        /author/i.test(line)
-    );
+    .slice(0, 8)
+    .find((line) => /by\s+/i.test(line) || /author/i.test(line));
 
   if (authorLine) {
     return authorLine
@@ -257,8 +260,7 @@ const inferAbstract = (text) => {
   );
 
   if (abstractMatch) {
-    return normalizeText(abstractMatch[1])
-      .replace(/\n+/g, " ");
+    return normalizeText(abstractMatch[1]).replace(/\n+/g, " ");
   }
 
   const lines = text
@@ -270,9 +272,7 @@ const inferAbstract = (text) => {
 };
 
 const inferTags = (title, abstract) => {
-  const combined =
-    `${title} ${abstract}`.toLowerCase();
-
+  const combined = `${title} ${abstract}`.toLowerCase();
   const tagSet = new Set();
 
   keywordTagPatterns.forEach(({ pattern, tag }) => {
@@ -281,9 +281,7 @@ const inferTags = (title, abstract) => {
     }
   });
 
-  const candidates = (
-    combined.match(/\b[a-z]{5,}\b/g) || []
-  )
+  const candidates = (combined.match(/\b[a-z]{5,}\b/g) || [])
     .filter((word) => !stopWords.has(word))
     .reduce((count, word) => {
       count[word] = (count[word] || 0) + 1;
@@ -297,9 +295,7 @@ const inferTags = (title, abstract) => {
     .slice(0, 6);
 
   sorted.forEach((tag) => {
-    tagSet.add(
-      tag.charAt(0).toUpperCase() + tag.slice(1)
-    );
+    tagSet.add(tag.charAt(0).toUpperCase() + tag.slice(1));
   });
 
   return Array.from(tagSet).slice(0, 8);
@@ -307,14 +303,8 @@ const inferTags = (title, abstract) => {
 
 const inferFolder = (title, abstract) => {
   const combined = `${title} ${abstract}`;
-
-  const match = topicFolders.find(({ pattern }) =>
-    pattern.test(combined)
-  );
-
-  return match
-    ? match.folder
-    : "Research Library";
+  const match = topicFolders.find(({ pattern }) => pattern.test(combined));
+  return match ? match.folder : "Research Library";
 };
 
 export const uploadPaper = async (req, res) => {
@@ -326,15 +316,9 @@ export const uploadPaper = async (req, res) => {
       });
     }
 
-    const {
-      originalname,
-      mimetype,
-      size,
-      buffer,
-    } = req.file;
+    const { originalname, mimetype, size, buffer } = req.file;
 
-    const providedTitle =
-      req.body.title?.trim();
+    const providedTitle = req.body.title?.trim();
 
     const providedAuthors = req.body.authors
       ? Array.isArray(req.body.authors)
@@ -354,167 +338,92 @@ export const uploadPaper = async (req, res) => {
             .filter(Boolean)
       : [];
 
-    const providedFolder =
-      req.body.folder?.trim();
-let inferredTitle = originalname;
-let inferredAuthors = [];
-let inferredAbstract = "";
-let inferredTags = [];
-let inferredFolder = "Research Library";
+    const providedFolder = req.body.folder?.trim();
+    let inferredTitle = originalname;
+    let inferredAuthors = [];
+    let inferredAbstract = "";
+    let inferredTags = [];
+    let inferredFolder = "Research Library";
 
-// 📄 Full extracted PDF text
-let extractedContent = "";
+    let extractedContent = "";
+    let aiTopic = "Research";
 
-// 🤖 AI topic
-let aiTopic = "Research";
-
-    /*
-     * PDF PROCESSING
-     */
     if (
       mimetype === "application/pdf" ||
-      originalname
-        .toLowerCase()
-        .endsWith(".pdf")
+      originalname.toLowerCase().endsWith(".pdf")
     ) {
-      console.log(
-        `📄 Processing PDF: ${originalname}`
-      );
-
-      const pdfText =
-        await extractTextFromPdf(buffer);
-        extractedContent = pdfText;
+      const pdfText = await extractTextFromPdf(buffer);
+      extractedContent = pdfText;
 
       if (pdfText) {
-        console.log(
-          `📝 Extracted ${pdfText.length} characters`
-        );
+        // Fallback heuristic extraction
+        inferredTitle = inferTitle(pdfText, originalname);
+        inferredAuthors = inferAuthors(pdfText);
+        inferredAbstract = inferAbstract(pdfText);
+        inferredTags = inferTags(inferredTitle, inferredAbstract);
+        inferredFolder = inferFolder(inferredTitle, inferredAbstract);
 
-        /*
-         * Existing metadata extraction
-         */
-        inferredTitle = inferTitle(
-          pdfText,
-          originalname
-        );
-
-        inferredAuthors =
-          inferAuthors(pdfText);
-
-        inferredAbstract =
-          inferAbstract(pdfText);
-
-        inferredTags = inferTags(
-          inferredTitle,
-          inferredAbstract
-        );
-
-        inferredFolder = inferFolder(
-          inferredTitle,
-          inferredAbstract
-        );
-
-        /*
-         * 🤖 GEMINI TOPIC CLASSIFICATION
-         */
+        // 🤖 Gemini AI metadata extraction (Works for IEEE, ACM, arXiv, Springer, Nature, NIPS, etc.)
         try {
-  console.log("🤖 Asking Gemini to classify paper...");
+          console.log("🤖 Extracting paper metadata with Gemini AI...");
+          let aiMeta;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              aiMeta = await extractPaperMetadataWithAI(pdfText);
+              break;
+            } catch (error) {
+              if (attempt === 3) throw error;
+              await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+            }
+          }
 
-  let aiResult;
+          if (aiMeta?.title && aiMeta.title.length > 3) {
+            console.log(" Gemini extracted accurate title:", aiMeta.title);
+            inferredTitle = aiMeta.title;
+          }
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      aiResult = await classifyPaperTopic(pdfText);
-      break;
-    } catch (error) {
-      console.log(
-        `⚠️ Gemini attempt ${attempt} failed`
-      );
+          if (aiMeta?.authors && aiMeta.authors.length > 0) {
+            inferredAuthors = aiMeta.authors;
+          }
 
-      if (attempt === 3) {
-        throw error;
-      }
+          if (aiMeta?.topic) {
+            aiTopic = aiMeta.topic;
+          }
 
-      // Wait before retrying
-      await new Promise((resolve) =>
-        setTimeout(resolve, 2000 * attempt)
-      );
-    }
-  }
-
-  aiTopic = aiResult?.topic || "Research";
-
-  console.log(
-    "🤖 AI detected topic:",
-    aiTopic
-  );
-
-} catch (error) {
-
-  console.error(
-    "❌ AI classification failed after retries:",
-    error.message
-  );
-
-  aiTopic = inferredFolder || "Research";
-}
+          if (aiMeta?.abstract) {
+            inferredAbstract = aiMeta.abstract;
+          }
+        } catch (error) {
+          console.warn("⚠️ Gemini metadata fallback used:", error.message);
+          aiTopic = inferredFolder || "Research";
+        }
       }
     }
+
     let workspace = null;
+    try {
+      workspace = await Workspace.findOne({
+        name: aiTopic,
+        createdBy: req.user.id,
+      });
 
-try {
-  workspace = await Workspace.findOne({
-    name: aiTopic,
-    createdBy: req.user.id,
-  });
+      if (!workspace) {
+        workspace = await Workspace.create({
+          name: aiTopic,
+          topic: aiTopic,
+          description: `Research papers related to ${aiTopic}`,
+          createdBy: req.user.id,
+        });
+      }
+    } catch (error) {
+      console.error("Workspace creation failed:", error.message);
+    }
 
-  if (!workspace) {
-    workspace = await Workspace.create({
-      name: aiTopic,
-      topic: aiTopic,
-      description: `Research papers related to ${aiTopic}`,
-      createdBy: req.user.id,
-    });
+    const title = providedTitle || inferredTitle;
+    const authors = providedAuthors.length > 0 ? providedAuthors : inferredAuthors;
+    const tags = providedTags.length > 0 ? providedTags : inferredTags;
+    const folder = providedFolder || inferredFolder;
 
-    console.log(
-      "📁 Created workspace:",
-      workspace.name
-    );
-  } else {
-    console.log(
-      "📁 Using existing workspace:",
-      workspace.name
-    );
-  }
-} catch (error) {
-  console.error(
-    "❌ Workspace creation failed:",
-    error.message
-  );
-}
-
-    /*
-     * FINAL PAPER VALUES
-     */
-    const title =
-      providedTitle || inferredTitle;
-
-    const authors =
-      providedAuthors.length > 0
-        ? providedAuthors
-        : inferredAuthors;
-
-    const tags =
-      providedTags.length > 0
-        ? providedTags
-        : inferredTags;
-
-    const folder =
-      providedFolder || inferredFolder;
-
-    /*
-     * SAVE PAPER
-     */
     const paper = await Paper.create({
       filename: originalname,
       title,
@@ -531,13 +440,7 @@ try {
       workspace: workspace?._id || null,
     });
 
-
-    console.log(
-      "✅ Paper saved:",
-      paper.title
-    );
-
-    if (paper.workspace) {
+    if (paper.workspace && workspace) {
       try {
         await Activity.create({
           workspace: paper.workspace,
@@ -546,8 +449,41 @@ try {
           description: `${req.user.fullName || "A researcher"} uploaded paper "${paper.title}"`,
           metadata: { paperId: paper._id },
         });
+
+        // Notify workspace members
+        const membersToNotify = new Set();
+        if (workspace.createdBy) membersToNotify.add(String(workspace.createdBy));
+        (workspace.members || []).forEach((m) => {
+          if (m.user) membersToNotify.add(String(m.user));
+        });
+        membersToNotify.delete(String(req.user.id));
+
+        const notifs = Array.from(membersToNotify).map((recipientId) => ({
+          recipient: recipientId,
+          sender: req.user.id,
+          workspace: workspace._id,
+          type: "paper_added",
+          title: "New Paper Added",
+          message: `${req.user.fullName || "A researcher"} added paper "${paper.title}" to ${workspace.name}.`,
+          link: `/reader/${paper._id}`,
+        }));
+
+        if (notifs.length > 0) {
+          const createdNotifs = await Notification.insertMany(notifs);
+          const io = req.app.get("io");
+          if (io) {
+            createdNotifs.forEach((n) => {
+              io.to(`user-${n.recipient}`).emit("notification", n);
+            });
+            io.to(`workspace-${workspace._id}`).emit("workspace-activity", {
+              type: "paper_added",
+              paperId: paper._id,
+              title: paper.title,
+            });
+          }
+        }
       } catch (actErr) {
-        console.warn("Activity log failed:", actErr.message);
+        console.warn("Activity/Notification log failed:", actErr.message);
       }
     }
 
@@ -568,18 +504,11 @@ try {
       },
     });
   } catch (error) {
-    console.error(
-      "❌ Upload paper error:",
-      error
-    );
-
+    console.error("Upload paper error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
-      error:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : undefined,
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 };
@@ -607,8 +536,7 @@ export const listPapers = async (req, res) => {
       papers,
     });
   } catch (error) {
-    console.error("❌ List papers error:", error);
-
+    console.error("List papers error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -672,8 +600,7 @@ export const downloadPaper = async (req, res) => {
 
     return res.send(paper.data);
   } catch (error) {
-    console.error("❌ Download paper error:", error);
-
+    console.error("Download paper error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -715,7 +642,7 @@ export const viewPaperInline = async (req, res) => {
 
     return res.send(paper.data);
   } catch (error) {
-    console.error("❌ View paper inline error:", error);
+    console.error("View paper inline error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -758,8 +685,7 @@ export const getPaper = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ Get paper error:", error);
-
+    console.error("Get paper error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",

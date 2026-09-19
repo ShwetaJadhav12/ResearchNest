@@ -28,7 +28,7 @@ export default function Footer() {
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-3 py-1 text-xs font-semibold text-violet-700">
                 <Sparkles size={12} className="text-violet-600" />
-                Gemini 2.5 Flash
+                AI Engine v2.5
               </span>
             </div>
           </div>
@@ -107,10 +107,9 @@ export default function Footer() {
                 </a>
               </li>
               <li>
-                <a href="https://ai.google.dev" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-violet-600 transition-colors flex items-center gap-1">
-                  Google Gemini AI
-                  <ArrowUpRight size={13} />
-                </a>
+                <span className="text-slate-500 flex items-center gap-1">
+                  Advanced AI Engine
+                </span>
               </li>
               <li>
                 <Link to="/projects" className="text-slate-500 hover:text-violet-600 transition-colors">

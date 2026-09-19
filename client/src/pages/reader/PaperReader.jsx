@@ -53,6 +53,20 @@ export default function PaperReader() {
 
   // Mode: "text" (interactive AI reading) or "pdf" (native PDF view)
   const [viewMode, setViewMode] = useState("text");
+  const [pdfTheme, setPdfTheme] = useState("light"); // "light", "sepia", "night"
+  const [isPdfFullscreen, setIsPdfFullscreen] = useState(false);
+
+  const copyBibTexCitation = () => {
+    const title = paper?.title || "Research Paper";
+    const author = paper?.authors?.join(" and ") || "Unknown Author";
+    const year = paper?.year || new Date().getFullYear();
+    const journal = paper?.journal || "ResearchNest Repository";
+    const citeKey = (paper?.authors?.[0]?.split(" ")?.pop() || "paper") + year;
+    const bibtex = `@article{${citeKey},\n  title={${title}},\n  author={${author}},\n  journal={${journal}},\n  year={${year}}\n}`;
+
+    navigator.clipboard.writeText(bibtex);
+    toast.success("BibTeX citation copied to clipboard!");
+  };
 
   // Selection & AI Quick Action state
   const [selectedText, setSelectedText] = useState("");
@@ -645,11 +659,88 @@ ${a.aiResponse ? `**AI Insight:**\n${a.aiResponse}\n` : ""}
           ref={textContainerRef}
         >
           {viewMode === "pdf" ? (
-            /* ------------------ PDF VIEWER MODE ------------------ */
-            <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-100">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 text-xs text-slate-600">
-                <span className="font-medium">Original PDF Document</span>
+            /* ------------------ ENHANCED PDF VIEWER MODE ------------------ */
+            <div
+              className={`flex h-full min-h-0 w-full flex-col overflow-hidden transition-colors ${
+                isPdfFullscreen ? "fixed inset-0 z-50 bg-slate-900" : ""
+              } ${
+                pdfTheme === "sepia"
+                  ? "bg-[#f4ecd8]"
+                  : pdfTheme === "night"
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100"
+              }`}
+            >
+              {/* PDF Control & AI Shortcuts Bar */}
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-200/80 bg-white px-4 py-2.5 text-xs text-slate-700 shadow-sm gap-2">
+                {/* PDF AI Shortcuts */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-400 text-[10px] uppercase tracking-wider hidden sm:inline mr-1">
+                    AI PDF Actions:
+                  </span>
+                  <button
+                    onClick={() => triggerAIAction("summarize", paper.abstract || paper.content || paper.title)}
+                    className="inline-flex items-center gap-1 rounded-xl bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700 hover:bg-violet-100 transition"
+                  >
+                    <Sparkles size={13} /> Summarize PDF
+                  </button>
+                  <button
+                    onClick={() => triggerAIAction("explain", paper.abstract || paper.content || paper.title)}
+                    className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+                  >
+                    <FileText size={13} /> Key Methodology
+                  </button>
+                  <button
+                    onClick={copyBibTexCitation}
+                    className="inline-flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+                  >
+                    <Copy size={13} /> Copy BibTeX
+                  </button>
+                </div>
+
+                {/* PDF Reader Theme & Fullscreen Controls */}
                 <div className="flex items-center gap-2">
+                  {/* Theme buttons */}
+                  <div className="flex items-center rounded-xl bg-slate-100 p-0.5">
+                    <button
+                      onClick={() => setPdfTheme("light")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-bold transition ${
+                        pdfTheme === "light" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500"
+                      }`}
+                      title="Light Theme"
+                    >
+                      Light
+                    </button>
+                    <button
+                      onClick={() => setPdfTheme("sepia")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-bold transition ${
+                        pdfTheme === "sepia" ? "bg-[#fbf0d9] text-amber-900 shadow-xs" : "text-slate-500"
+                      }`}
+                      title="Sepia Comfort Theme"
+                    >
+                      Sepia
+                    </button>
+                    <button
+                      onClick={() => setPdfTheme("night")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-bold transition ${
+                        pdfTheme === "night" ? "bg-slate-900 text-white shadow-xs" : "text-slate-500"
+                      }`}
+                      title="Night Theme"
+                    >
+                      Night
+                    </button>
+                  </div>
+
+                  {/* Fullscreen Toggle */}
+                  <button
+                    onClick={() => setIsPdfFullscreen(!isPdfFullscreen)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    title={isPdfFullscreen ? "Exit Fullscreen" : "Fullscreen Reading Mode"}
+                  >
+                    {isPdfFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+
+                  {/* Download */}
                   {pdfSrc && (
                     <a
                       href={pdfSrc}
@@ -674,7 +765,16 @@ ${a.aiResponse ? `**AI Insight:**\n${a.aiResponse}\n` : ""}
                 </div>
               </div>
 
-              <div className="relative min-h-0 flex-1 bg-slate-200">
+              {/* PDF Container */}
+              <div
+                className={`relative min-h-0 flex-1 p-2 ${
+                  pdfTheme === "sepia"
+                    ? "bg-[#f4ecd8]"
+                    : pdfTheme === "night"
+                    ? "bg-slate-900"
+                    : "bg-slate-200"
+                }`}
+              >
                 {pdfLoading && (
                   <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
                     <div className="flex items-center gap-2 rounded-xl border border-violet-100 bg-white px-4 py-3 text-sm font-semibold text-violet-700 shadow-sm">
@@ -702,7 +802,7 @@ ${a.aiResponse ? `**AI Insight:**\n${a.aiResponse}\n` : ""}
                   <iframe
                     src={pdfSrc}
                     title={paper.title || "PDF viewer"}
-                    className="h-full w-full border-none bg-white"
+                    className="h-full w-full border-none rounded-xl bg-white shadow-sm"
                   />
                 )}
               </div>

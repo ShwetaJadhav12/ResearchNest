@@ -56,7 +56,7 @@ export const CORE_FEATURES = [
     tag: "Interactive Reader",
     title: "AI Research Reader",
     path: "/reader",
-    description: "Read papers with in-line Gemini explanations, 5-color semantic highlights, and margin notes directly attached to text.",
+    description: "Read papers with in-line AI explanations, 5-color semantic highlights, and margin notes directly attached to text.",
     tags: ["5-Color Highlights", "Margin Notes", "In-line Explainer"],
     theme: {
       bg: "from-amber-500/10 to-orange-500/5",

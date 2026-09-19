@@ -252,7 +252,7 @@ export default function ResearchHorizon() {
         {loading && (
           <div className="my-16 flex flex-col items-center justify-center text-slate-500">
             <RefreshCw className="animate-spin text-violet-600 mb-3" size={36} />
-            <p className="text-sm font-medium">Synthesizing multi-paper matrix and hypothesis models via Gemini AI...</p>
+            <p className="text-sm font-medium">Synthesizing multi-paper matrix and hypothesis models via AI Engine...</p>
           </div>
         )}
 

@@ -18,6 +18,7 @@ import {
   Users,
   Plus,
 } from "lucide-react";
+import NotificationDropdown from "../common/NotificationDropdown";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -324,16 +325,7 @@ export default function Navbar() {
           )}
 
           {/* NOTIFICATIONS */}
-          {user && (
-            <button
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-violet-50 hover:text-violet-600"
-              aria-label="Notifications"
-            >
-              <Bell size={18} />
-
-              <span className="absolute right-[9px] top-[9px] h-1.5 w-1.5 rounded-full bg-violet-600 ring-2 ring-white" />
-            </button>
-          )}
+          {user && <NotificationDropdown />}
 
           {/* =================================================
               USER PROFILE

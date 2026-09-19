@@ -39,7 +39,7 @@ export default function Hero() {
             {/* Pill Announcement Badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-violet-200/90 bg-white/95 px-4 py-1.5 text-xs font-bold text-violet-800 shadow-xs backdrop-blur-md">
               <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="bg-gradient-to-r from-violet-700 to-fuchsia-700 bg-clip-text text-transparent">Gemini 2.5 Active</span>
+              <span className="bg-gradient-to-r from-violet-700 to-fuchsia-700 bg-clip-text text-transparent">AI Engine Active</span>
               <span className="text-slate-300">•</span>
               <span className="text-slate-600 font-medium">Unified AI Research OS</span>
             </div>

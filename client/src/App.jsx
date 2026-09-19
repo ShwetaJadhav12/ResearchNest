@@ -11,6 +11,7 @@ import ResearchAssistant from "./pages/research/ResearchAssistant";
 import PaperReader from "./pages/reader/PaperReader";
 import ResearchDiscovery from "./pages/discovery/ResearchDiscovery";
 import KnowledgeGraph from "./pages/knowledge/KnowledgeGraph";
+import Settings from "./pages/settings/Settings";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
         <Route path="/reader/:paperId" element={<PaperReader />} />
         <Route path="/discovery" element={<ResearchDiscovery />} />
         <Route path="/knowledge-graph" element={<KnowledgeGraph />} />
+        <Route path="/settings" element={<Settings />} />
       </Routes>
     </BrowserRouter>
   );
